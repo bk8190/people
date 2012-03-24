@@ -148,6 +148,9 @@ void Faces::faceDetectionThread(uint i) {
     }
 
     // Find the faces using OpenCV's haar cascade object detector.
+    
+    // This finds the min face size in pixels
+    // TODO: remove dependence on cam_model
     cv::Point3d p3_1(0,0,max_face_z_m_);
     cv::Point3d p3_2(face_size_min_m_,0,max_face_z_m_);
     cv::Point2d p2_1, p2_2;
@@ -173,7 +176,8 @@ void Faces::faceDetectionThread(uint i) {
       one_face.id = i; // The cascade that computed this face.
 
       // Get the median disparity in the middle half of the bounding box.
-      cv::Mat disp_roi_shallow(*disparity_image_,cv::Rect(floor(one_face.box2d.x+0.25*one_face.box2d.width),  
+      cv::Mat disp_roi_shallow(*disparity_image_,
+       cv::Rect(floor(one_face.box2d.x+0.25*one_face.box2d.width),  
 							  floor(one_face.box2d.y+0.25*one_face.box2d.height),
 							  floor(one_face.box2d.x+0.75*one_face.box2d.width) - floor(one_face.box2d.x+0.25*one_face.box2d.width) + 1,
 							  floor(one_face.box2d.y+0.75*one_face.box2d.height) - floor(one_face.box2d.y+0.25*one_face.box2d.height) + 1));
@@ -192,10 +196,13 @@ void Faces::faceDetectionThread(uint i) {
       // If the median disparity was valid but the face isn't a reasonable size, the face status is "bad".
       // Otherwise, the face status is "unknown".
       if (avg_disp > 0) {
-	cam_model_->projectDisparityTo3d(cv::Point2d(0.0,0.0),avg_disp,p3_1); 
+  // Find the width of the face in 3D space
+	cam_model_->projectDisparityTo3d(cv::Point2d(0.0,0.0),avg_disp,p3_1); // disparity to depth
 	cam_model_->projectDisparityTo3d(cv::Point2d(one_face.box2d.width,0.0),avg_disp,p3_2);
 	one_face.radius3d = fabs(p3_2.x-p3_1.x)/2.0;
 	cam_model_->projectDisparityTo3d(one_face.center2d, avg_disp, one_face.center3d);
+	
+	// Make sure the face obeys constraints
 	if (one_face.center3d.z > max_face_z_m_ || 2.0*one_face.radius3d < face_size_min_m_ || 2.0*one_face.radius3d > face_size_max_m_) {
 	  one_face.status = "bad";
 	}
