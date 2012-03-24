@@ -377,13 +377,14 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 		
 		for (it = pos_list_.begin(); it != pos_list_.end(); it++)
 		{
-			// TODO: This segaults after it has been removed
-			if ((limage->header.stamp - (*it).second.restamp) > ros::Duration().fromSec(5.0)) {
+			// TODO: instead of removing it, I am making it absurdly far away.  Hacky logic makes bunny cry...
+			if ((limage->header.stamp - (*it).second.restamp) > ros::Duration().fromSec(2.0)) {
 				// Position is too old, kill the person.
-				ROS_INFO_STREAM("Before removing size = " << pos_list_.size() );
-				pos_list_.erase(it);
-				ROS_INFO_STREAM("After removing size = " << pos_list_.size() );
-				return;
+				(*it).second.pos.pos.x = 99999;
+				(*it).second.pos.pos.y = 99999;
+				(*it).second.pos.pos.z = 99999;
+				(*it).second.restamp = ros::Time::now() + ros::Duration().fromSec(99999);
+				ROS_INFO_STREAM("Removing old person.  New size = " << pos_list_.size() );
 			}
 			else
 			{
@@ -435,6 +436,8 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 				// Note that multiple face positions can be published with the same id, but ids in the pos_list_ are unique. The position of a face in the list is updated with the closest found face.
 				double dist, mindist = BIGDIST_M;
 				map<string, RestampedPositionMeasurement>::iterator close_it = pos_list_.end();
+				
+				ROS_INFO("Finding distances");
 				for (it = pos_list_.begin(); it != pos_list_.end(); it++)
 				{
 					dist = pow((*it).second.pos.pos.x - pos.pos.x, 2.0)
