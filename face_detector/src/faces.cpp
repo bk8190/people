@@ -58,8 +58,9 @@ Faces::~Faces() {
   for (int i=list_.size(); i>0; i--) {
     list_.pop_back();
   }
-  
+
   cam_model_ = 0;
+
 }
 
 
@@ -82,7 +83,7 @@ void Faces::initFaceDetection(uint num_cascades, string haar_classifier_filename
   bool cascade_ok = cascade_.load(haar_classifier_filename);
   
   if (!cascade_ok) {
-    ROS_ERROR("Cascade file %s doesn't exist.", haar_classifier_filename.c_str());
+    ROS_ERROR_STREAM("Cascade file " << haar_classifier_filename << " doesn't exist.");
     return;
   }
   threads_.create_thread(boost::bind(&Faces::faceDetectionThread,this,0));
@@ -90,9 +91,8 @@ void Faces::initFaceDetection(uint num_cascades, string haar_classifier_filename
 
 /////
 
-vector<Box2D3D>
-Faces::detectAllFaces(cv::Mat &image, double threshold, cv::Mat &depth_image, image_geometry::PinholeCameraModel *cam_model)
-{
+vector<Box2D3D> Faces::detectAllFaces(cv::Mat &image, double threshold, cv::Mat &disparity_image, image_geometry::StereoCameraModel *cam_model) {
+
   faces_.clear();
 
   // Convert the image to grayscale, if necessary.
@@ -109,9 +109,9 @@ Faces::detectAllFaces(cv::Mat &image, double threshold, cv::Mat &depth_image, im
     std::cerr << "Unknown image type"<<std::endl;
     return faces_;
   }
-  
+
+  disparity_image_ = &disparity_image;
   cam_model_ = cam_model;
-  depth_image_ = &depth_image;
   
   // Tell the face detection threads that they can run once.
   num_threads_to_wait_for_ = threads_.size();
@@ -150,14 +150,12 @@ void Faces::faceDetectionThread(uint i) {
     // Find the faces using OpenCV's haar cascade object detector.
     
     // This finds the min face size in pixels
-    // Find the minimum face size.  p3_1 and p3_2 represent points on the edges of a small face a distance away.
+    // TODO: remove dependence on cam_model
     cv::Point3d p3_1(0,0,max_face_z_m_);
     cv::Point3d p3_2(face_size_min_m_,0,max_face_z_m_);
     cv::Point2d p2_1, p2_2;
-    
-    // Project p3_1 and p3_2 onto the camera plane
-    cam_model_->project3dToPixel(p3_1,p2_1);
-    cam_model_->project3dToPixel(p3_2,p2_2);
+    (cam_model_->left()).project3dToPixel(p3_1,p2_1);
+    (cam_model_->left()).project3dToPixel(p3_2,p2_2);
     int this_min_face_size = (int)(floor(fabs(p2_2.x-p2_1.x)));
 
     std::vector<cv::Rect> faces_vec;
@@ -166,7 +164,7 @@ void Faces::faceDetectionThread(uint i) {
     // Filter the faces using depth information, if available. Currently checks that the actual face size is within the given limits.
     cv::Scalar color(0,255,0);
     Box2D3D one_face;
-    double avg_depth = 0.0;
+    double avg_disp = 0.0;
     cv::Mat uvd(1,3,CV_32FC1);
     cv::Mat xyz(1,3,CV_32FC1);
     // For each face...
@@ -177,8 +175,8 @@ void Faces::faceDetectionThread(uint i) {
       one_face.box2d = faces_vec[iface];
       one_face.id = i; // The cascade that computed this face.
 
-      // Get the median depth in the middle half of the bounding box.
-      cv::Mat disp_roi_shallow(*depth_image_,
+      // Get the median disparity in the middle half of the bounding box.
+      cv::Mat disp_roi_shallow(*disparity_image_,
        cv::Rect(floor(one_face.box2d.x+0.25*one_face.box2d.width),  
 							  floor(one_face.box2d.y+0.25*one_face.box2d.height),
 							  floor(one_face.box2d.x+0.75*one_face.box2d.width) - floor(one_face.box2d.x+0.25*one_face.box2d.width) + 1,
@@ -187,42 +185,32 @@ void Faces::faceDetectionThread(uint i) {
       cv::Mat tmat = disp_roi.reshape(1,disp_roi.rows*disp_roi.cols);
       cv::Mat tmat_sorted;
       cv::sort(tmat, tmat_sorted, CV_SORT_EVERY_COLUMN+CV_SORT_DESCENDING);
-      avg_depth = tmat_sorted.at<float>(floor(cv::countNonZero(tmat_sorted>0.0)/2.0)); // Get the middle valid depth (-1 depths are invalid)
+      avg_disp = tmat_sorted.at<float>(floor(cv::countNonZero(tmat_sorted>=0.0)/2.0)); // Get the middle valid disparity (-1 disparities are invalid)
 
       // Fill in the rest of the face data structure.
       one_face.center2d = cv::Point2d(one_face.box2d.x+one_face.box2d.width/2.0,
 				      one_face.box2d.y+one_face.box2d.height/2.0);
       one_face.radius2d = one_face.box2d.width/2.0;
 
-      // If the median depth was valid and the face is a reasonable size, the face status is "good".
-      // If the median depth was valid but the face isn't a reasonable size, the face status is "bad".
+      // If the median disparity was valid and the face is a reasonable size, the face status is "good".
+      // If the median disparity was valid but the face isn't a reasonable size, the face status is "bad".
       // Otherwise, the face status is "unknown".
-      if (avg_depth > 0)
-      {
-//	cam_model_->projectDisparityTo3d(cv::Point2d(0.0,0.0),avg_disp,p3_1); // disparity to depth
-				p3_1 = cv::Point3d(0.0,0.0,avg_depth);
-
-//	cam_model_->projectDisparityTo3d(cv::Point2d(one_face.box2d.width,0.0),avg_disp,p3_2);
-				p3_2 = cam_model_->projectPixelTo3dRay(cv::Point2d(one_face.box2d.width,0.0)) * avg_depth;
-
-				one_face.radius3d = fabs(p3_2.x-p3_1.x)/2.0;
+      if (avg_disp > 0) {
+  // Find the width of the face in 3D space
+	cam_model_->projectDisparityTo3d(cv::Point2d(0.0,0.0),avg_disp,p3_1); // disparity to depth
+	cam_model_->projectDisparityTo3d(cv::Point2d(one_face.box2d.width,0.0),avg_disp,p3_2);
+	one_face.radius3d = fabs(p3_2.x-p3_1.x)/2.0;
+	cam_model_->projectDisparityTo3d(one_face.center2d, avg_disp, one_face.center3d);
 	
-//	cam_model_->projectDisparityTo3d(one_face.center2d, avg_disp, one_face.center3d);
-				one_face.center3d = cam_model_->projectPixelTo3dRay(one_face.center2d) * avg_depth;
-	
-				// Make sure the face obeys constraints
-				if (one_face.center3d.z > max_face_z_m_
-				 || 2.0*one_face.radius3d < face_size_min_m_
-				 || 2.0*one_face.radius3d > face_size_max_m_)
-				{
-					one_face.status = "bad";
-				}
+	// Make sure the face obeys constraints
+	if (one_face.center3d.z > max_face_z_m_ || 2.0*one_face.radius3d < face_size_min_m_ || 2.0*one_face.radius3d > face_size_max_m_) {
+	  one_face.status = "bad";
+	}
       }
-      else
-      {
-				one_face.radius3d = 0.0;     
-				one_face.center3d = cv::Point3d(0.0,0.0,0.0);
-				one_face.status = "unknown";
+      else {
+	one_face.radius3d = 0.0;     
+	one_face.center3d = cv::Point3d(0.0,0.0,0.0);
+	one_face.status = "unknown";
       }
 
       // Add faces to the output vector.
