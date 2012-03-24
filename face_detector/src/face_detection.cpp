@@ -95,11 +95,8 @@ public:
   sensor_msgs::CvBridge lbridge_; /**< ROS->OpenCV bridge for the left image. */
   sensor_msgs::CvBridge dbridge_; /**< ROS->OpenCV bridge for the disparity image. */
   
-  
   typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, stereo_msgs::DisparityImage, sensor_msgs::CameraInfo, sensor_msgs::CameraInfo> MySyncPolicy;
   message_filters::Synchronizer<MySyncPolicy> sync_;
-  
-  //message_filters::TimeSynchronizer<sensor_msgs::Image, stereo_msgs::DisparityImage, sensor_msgs::CameraInfo, sensor_msgs::CameraInfo> sync_; /**< Stereo topic synchronizer. */
   
 
   // Action
