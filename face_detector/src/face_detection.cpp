@@ -64,7 +64,7 @@
 
 #include "face_detector/faces.h"
 
-#include "image_geometry/stereo_camera_model.h"
+#include "image_geometry/pinhole_camera_model.h"
 
 #include <actionlib/server/simple_action_server.h>
 #include <face_detector/FaceDetectorAction.h>
@@ -85,13 +85,12 @@ public:
 
   // Images and conversion
   image_transport::ImageTransport it_;
-  image_transport::SubscriberFilter limage_sub_; /**< Left image msg. */
-  message_filters::Subscriber<stereo_msgs::DisparityImage> dimage_sub_; /**< Disparity image msg. */
-  message_filters::Subscriber<sensor_msgs::CameraInfo> lcinfo_sub_; /**< Left camera info msg. */
-  message_filters::Subscriber<sensor_msgs::CameraInfo> rcinfo_sub_; /**< Right camera info msg. */
-  sensor_msgs::CvBridge lbridge_; /**< ROS->OpenCV bridge for the left image. */
-  sensor_msgs::CvBridge dbridge_; /**< ROS->OpenCV bridge for the disparity image. */
-  message_filters::TimeSynchronizer<sensor_msgs::Image, stereo_msgs::DisparityImage, sensor_msgs::CameraInfo, sensor_msgs::CameraInfo> sync_; /**< Stereo topic synchronizer. */
+  image_transport::SubscriberFilter rgb_image_sub_; /**< RGB image msg. */
+  image_transport::SubscriberFilter depth_image_sub_; /**< depth image msg. */
+  message_filters::Subscriber<sensor_msgs::CameraInfo> cinfo_sub_; /**< camera info msg. */
+  sensor_msgs::CvBridge rgb_bridge_; /**< ROS->OpenCV bridge for the rgb image. */
+  sensor_msgs::CvBridge depth_bridge_; /**< ROS->OpenCV bridge for the depth image. */
+  message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image, sensor_msgs::CameraInfo> sync_; /**< Image topic synchronizer. */
   
 
   // Action
@@ -137,7 +136,7 @@ public:
 
   tf::TransformListener tf_;
 
-  boost::mutex cv_mutex_, pos_mutex_, limage_mutex_, dimage_mutex_;
+  boost::mutex cv_mutex_, pos_mutex_;//, rgb_image_mutex_, dimage_mutex_;
 
   bool do_continuous_; /**< True = run as a normal node, searching for faces continuously, False = run as an action, wait for action call to start detection. */
   
@@ -168,35 +167,35 @@ public:
 
     // Parameters
     ros::NodeHandle local_nh("~");
-    local_nh.param("classifier_name",name_,std::string(""));
-    local_nh.param("classifier_filename",haar_filename_,std::string(""));
-    local_nh.param("classifier_reliability",reliability_,0.0);
-    local_nh.param("do_display",do_display_,std::string("none"));
-    local_nh.param("do_continuous",do_continuous_,true);
-    local_nh.param("do_publish_faces_of_unknown_size",do_publish_unknown_,false);
-    local_nh.param("use_depth",use_depth_,true);
-    local_nh.param("use_external_init",external_init_,true);
-    local_nh.param("face_size_min_m",face_size_min_m,Faces::FACE_SIZE_MIN_M);
-    local_nh.param("face_size_max_m",face_size_max_m,Faces::FACE_SIZE_MAX_M);
-    local_nh.param("max_face_z_m",max_face_z_m,Faces::MAX_FACE_Z_M);
-    local_nh.param("face_separation_dist_m",face_sep_dist_m,Faces::FACE_SEP_DIST_M);
+    local_nh.param("classifier_name"       , name_          , std::string("")       );
+    local_nh.param("classifier_filename"   , haar_filename_ , std::string("")       );
+    local_nh.param("classifier_reliability", reliability_   , 0.0                   );
+    local_nh.param("do_display"            , do_display_    , std::string("none")   );
+    local_nh.param("do_continuous"         , do_continuous_ , true                  );
+    local_nh.param("do_publish_faces_of_unknown_size", do_publish_unknown_, false   );
+    local_nh.param("use_depth"             , use_depth_     , true                  );
+    local_nh.param("use_external_init"     , external_init_ , true                  );
+    local_nh.param("face_size_min_m"       , face_size_min_m, Faces::FACE_SIZE_MIN_M);
+    local_nh.param("face_size_max_m"       , face_size_max_m, Faces::FACE_SIZE_MAX_M);
+    local_nh.param("max_face_z_m"          , max_face_z_m   , Faces::MAX_FACE_Z_M   );
+    local_nh.param("face_separation_dist_m", face_sep_dist_m, Faces::FACE_SEP_DIST_M);
     
     faces_->initFaceDetection(1, haar_filename_, face_size_min_m, face_size_max_m, max_face_z_m, face_sep_dist_m);
 
     // Subscribe to the images and camera parameters
     string stereo_namespace, image_topic;
-    stereo_namespace = nh_.resolveName("stereo");
-    image_topic = nh_.resolveName("image");
-    string left_topic = ros::names::clean(stereo_namespace + "/left/" + image_topic);
-    string disparity_topic = ros::names::clean(stereo_namespace + "/disparity");
-    string left_camera_info_topic = ros::names::clean(stereo_namespace + "/left/camera_info");
-    string right_camera_info_topic = ros::names::clean(stereo_namespace + "/right/camera_info");
-    limage_sub_.subscribe(it_,left_topic,3);
-    dimage_sub_.subscribe(nh_,disparity_topic,3);
-    lcinfo_sub_.subscribe(nh_,left_camera_info_topic,3);
-    rcinfo_sub_.subscribe(nh_,right_camera_info_topic,3);
-    sync_.connectInput(limage_sub_, dimage_sub_, lcinfo_sub_, rcinfo_sub_),
-    sync_.registerCallback(boost::bind(&FaceDetector::imageCBAll, this, _1, _2, _3, _4));
+    stereo_namespace   = nh_.resolveName("stereo");
+    image_topic        = nh_.resolveName("image");
+    string rgb_topic   = ros::names::clean(stereo_namespace + "/left/" + image_topic);
+    string depth_topic = ros::names::clean(stereo_namespace + "/disparity");
+    string camera_info_topic = ros::names::clean(stereo_namespace + "/left/camera_info");
+    
+    rgb_image_sub_  .subscribe(it_,rgb_topic        ,3);
+    depth_image_sub_.subscribe(it_,depth_topic      ,3);
+    cinfo_sub_      .subscribe(nh_,camera_info_topic,3);
+    
+    sync_.connectInput(rgb_image_sub_, depth_image_sub_, cinfo_sub_),
+    sync_.registerCallback(boost::bind(&FaceDetector::imageCBAll, this, _1, _2, _3));
 
     // Advertise a position measure message.
     pos_pub_ = nh_.advertise<people_msgs::PositionMeasurement>("face_detector/people_tracker_measurements",1);
@@ -243,8 +242,8 @@ public:
    * When hooked into the person tracking filter, this callback will listen to messages 
    * from the filter with a person id and 3D position and adjust the person's face position accordingly.
    */ 
-  void posCallback(const people_msgs::PositionMeasurementConstPtr& pos_ptr) {
-
+  void posCallback(const people_msgs::PositionMeasurementConstPtr& pos_ptr)
+  {
     // Put the incoming position into the position queue. It'll be processed in the next image callback.
     boost::mutex::scoped_lock lock(pos_mutex_);
     map<string, RestampedPositionMeasurement>::iterator it;
@@ -278,9 +277,8 @@ public:
    * (if requested) draw rectangles around the found faces.
    * Can also compute which faces are associated (by proximity, currently) with faces it already has in its list of people.
    */
-  void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::DisparityImage::ConstPtr& dimage, const sensor_msgs::CameraInfo::ConstPtr& lcinfo, const sensor_msgs::CameraInfo::ConstPtr& rcinfo)
+  void imageCBAll(const sensor_msgs::Image::ConstPtr &rgb_image, const sensor_msgs::Image::ConstPtr &depth_image, const sensor_msgs::CameraInfo::ConstPtr& cinfo)
   {
-
     // Only run the detector if in continuous mode or the detector was turned on through an action invocation.
     if (!do_continuous_ && !as_.isActive())
       return;
@@ -294,21 +292,22 @@ public:
     }
  
     // ROS --> OpenCV
-    cv::Mat cv_image_left(lbridge_.imgMsgToCv(limage,"bgr8"));
-    sensor_msgs::ImageConstPtr boost_dimage(const_cast<sensor_msgs::Image*>(&dimage->image), NullDeleter());
-    cv::Mat cv_image_disp(dbridge_.imgMsgToCv(boost_dimage));
-    cam_model_.fromCameraInfo(lcinfo);
+    cv::Mat cv_image_rgb(rgb_bridge_.imgMsgToCv(rgb_image,"bgr8"));
+    //sensor_msgs::ImageConstPtr boost_depth_image(const_cast<sensor_msgs::Image*>(&depth_image->image), NullDeleter());
+    //cv::Mat cv_image_depth(depth_bridge_.imgMsgToCv(boost_depth_image));
+    cv::Mat cv_image_depth(depth_bridge_.imgMsgToCv(depth_image));
+    cam_model_.fromCameraInfo(cinfo);
 
     // For display, keep a copy of the image that we can draw on.
     if (do_display_ == "local") {
-      cv_image_out_ = cv_image_left.clone();
+      cv_image_out_ = cv_image_rgb.clone();
     }
  
     struct timeval timeofday;
     gettimeofday(&timeofday,NULL);
     ros::Time starttdetect = ros::Time().fromNSec(1e9*timeofday.tv_sec + 1e3*timeofday.tv_usec);
 
-    vector<Box2D3D> faces_vector = faces_->detectAllFaces(cv_image_left, 1.0, cv_image_disp, &cam_model_);
+    vector<Box2D3D> faces_vector = faces_->detectAllFaces(cv_image_rgb, 1.0, cv_image_depth, &cam_model_);
     gettimeofday(&timeofday,NULL);
     ros::Time endtdetect = ros::Time().fromNSec(1e9*timeofday.tv_sec + 1e3*timeofday.tv_usec);
     ros::Duration diffdetect = endtdetect - starttdetect;
@@ -319,30 +318,34 @@ public:
 
     int ngood = 0;
     sensor_msgs::PointCloud cloud;
-    cloud.header.stamp = limage->header.stamp;
-    cloud.header.frame_id = limage->header.frame_id;
+    cloud.header.stamp    = rgb_image->header.stamp;
+    cloud.header.frame_id = rgb_image->header.frame_id;
 
-    if (faces_vector.size() > 0 ) {
-
+    if (faces_vector.size() > 0 )
+    {
       // Transform the positions of the known faces and remove anyone who hasn't had an update in a long time.
       boost::mutex::scoped_lock pos_lock(pos_mutex_);
       map<string, RestampedPositionMeasurement>::iterator it;
-      for (it = pos_list_.begin(); it != pos_list_.end(); it++) {
-	if ((limage->header.stamp - (*it).second.restamp) > ros::Duration().fromSec(5.0)) {
+      for (it = pos_list_.begin(); it != pos_list_.end(); it++)
+      {
+	if ((rgb_image->header.stamp - (*it).second.restamp) > ros::Duration().fromSec(5.0))
+	{
 	  // Position is too old, kill the person.
 	  pos_list_.erase(it);
 	}
-	else {
+	else
+	{
 	  // Transform the person to this time. Note that the pos time is updated but not the restamp. 
 	  tf::Point pt;
 	  tf::pointMsgToTF((*it).second.pos.pos, pt);
 	  tf::Stamped<tf::Point> loc(pt, (*it).second.pos.header.stamp, (*it).second.pos.header.frame_id);
-	  try {
-     	    tf_.transformPoint(limage->header.frame_id, limage->header.stamp, loc, "odom_combined", loc);
-	    (*it).second.pos.header.stamp = limage->header.stamp;
+	  try
+	  {
+     	tf_.transformPoint(rgb_image->header.frame_id, rgb_image->header.stamp, loc, "odom", loc);
+	    (*it).second.pos.header.stamp = rgb_image->header.stamp;
 	    (*it).second.pos.pos.x = loc[0];
-            (*it).second.pos.pos.y = loc[1];
-            (*it).second.pos.pos.z = loc[2];
+      (*it).second.pos.pos.y = loc[1];
+      (*it).second.pos.pos.z = loc[2];
 	  } 
 	  catch (tf::TransformException& ex) {
 	  }
@@ -362,12 +365,12 @@ public:
 	  std::string id = "";
 
 	  // Convert the face format to a PositionMeasurement msg.
-	  pos.header.stamp = limage->header.stamp;
+	  pos.header.stamp = rgb_image->header.stamp;
 	  pos.name = name_; 
 	  pos.pos.x = one_face->center3d.x; 
 	  pos.pos.y = one_face->center3d.y;
 	  pos.pos.z = one_face->center3d.z; 
-	  pos.header.frame_id = limage->header.frame_id;//"*_stereo_optical_frame";
+	  pos.header.frame_id = rgb_image->header.frame_id;//"*_stereo_optical_frame";
 	  pos.reliability = reliability_;
 	  pos.initialization = 1;//0;
 	  pos.covariance[0] = 0.04; pos.covariance[1] = 0.0;  pos.covariance[2] = 0.0;
@@ -388,7 +391,7 @@ public:
 	  }
 	  if (close_it != pos_list_.end()) {
 	    if (mindist < (*close_it).second.dist) {
-	      (*close_it).second.restamp = limage->header.stamp;
+	      (*close_it).second.restamp = rgb_image->header.stamp;
 	      (*close_it).second.dist = mindist;
 	      (*close_it).second.pos = pos;
 	    }
