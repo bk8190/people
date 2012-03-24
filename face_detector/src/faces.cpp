@@ -44,8 +44,8 @@
 namespace people {
 
 Faces::Faces():
-  list_(NULL)
-{
+  list_(NULL),
+  cam_model_(NULL) {
 }
 
 Faces::~Faces() {
@@ -58,6 +58,8 @@ Faces::~Faces() {
   for (int i=list_.size(); i>0; i--) {
     list_.pop_back();
   }
+  
+  cam_model_ = 0;
 }
 
 
@@ -89,7 +91,7 @@ void Faces::initFaceDetection(uint num_cascades, string haar_classifier_filename
 /////
 
 vector<Box2D3D>
-Faces::detectAllFaces(cv::Mat &image, double threshold, cv::Mat &depth_image)
+Faces::detectAllFaces(cv::Mat &image, double threshold, cv::Mat &depth_image, image_geometry::PinholeCameraModel *cam_model)
 {
   faces_.clear();
 
@@ -107,7 +109,8 @@ Faces::detectAllFaces(cv::Mat &image, double threshold, cv::Mat &depth_image)
     std::cerr << "Unknown image type"<<std::endl;
     return faces_;
   }
-
+  
+  cam_model_ = cam_model;
   depth_image_ = &depth_image;
   
   // Tell the face detection threads that they can run once.
@@ -147,12 +150,14 @@ void Faces::faceDetectionThread(uint i) {
     // Find the faces using OpenCV's haar cascade object detector.
     
     // This finds the min face size in pixels
-    // TODO: remove dependence on cam_model
+    // Find the minimum face size.  p3_1 and p3_2 represent points on the edges of a small face a distance away.
     cv::Point3d p3_1(0,0,max_face_z_m_);
     cv::Point3d p3_2(face_size_min_m_,0,max_face_z_m_);
     cv::Point2d p2_1, p2_2;
-//    (cam_model_->left()).project3dToPixel(p3_1,p2_1);
-//    (cam_model_->left()).project3dToPixel(p3_2,p2_2);
+    
+    // Project p3_1 and p3_2 onto the camera plane
+    cam_model_->project3dToPixel(p3_1,p2_1);
+    cam_model_->project3dToPixel(p3_2,p2_2);
     int this_min_face_size = (int)(floor(fabs(p2_2.x-p2_1.x)));
 
     std::vector<cv::Rect> faces_vec;
@@ -193,10 +198,10 @@ void Faces::faceDetectionThread(uint i) {
       // If the median depth was valid but the face isn't a reasonable size, the face status is "bad".
       // Otherwise, the face status is "unknown".
       if (avg_depth > 0) {
-  // TODO: Find the width of the face in 3D space
+  // TODO: Find the width of the face in 3D space (change disparity to depth)
 //	cam_model_->projectDisparityTo3d(cv::Point2d(0.0,0.0),avg_disp,p3_1); // disparity to depth
 //	cam_model_->projectDisparityTo3d(cv::Point2d(one_face.box2d.width,0.0),avg_disp,p3_2);
-//	one_face.radius3d = fabs(p3_2.x-p3_1.x)/2.0;
+	one_face.radius3d = fabs(p3_2.x-p3_1.x)/2.0;
 //	cam_model_->projectDisparityTo3d(one_face.center2d, avg_disp, one_face.center3d);
 	
 	// Make sure the face obeys constraints

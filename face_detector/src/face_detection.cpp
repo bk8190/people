@@ -118,7 +118,7 @@ public:
 
   // Stereo
   bool use_depth_; /**< True/false use depth information. */
-  image_geometry::StereoCameraModel cam_model_; /**< ROS->OpenCV image_geometry conversion. */
+  image_geometry::PinholeCameraModel cam_model_; /**< ROS->OpenCV image_geometry conversion. */
 
   // Face detector params and output
   Faces *faces_; /**< List of faces and associated fcns. */
@@ -297,7 +297,7 @@ public:
     cv::Mat cv_image_left(lbridge_.imgMsgToCv(limage,"bgr8"));
     sensor_msgs::ImageConstPtr boost_dimage(const_cast<sensor_msgs::Image*>(&dimage->image), NullDeleter());
     cv::Mat cv_image_disp(dbridge_.imgMsgToCv(boost_dimage));
-    cam_model_.fromCameraInfo(lcinfo,rcinfo);
+    cam_model_.fromCameraInfo(lcinfo);
 
     // For display, keep a copy of the image that we can draw on.
     if (do_display_ == "local") {
@@ -308,7 +308,7 @@ public:
     gettimeofday(&timeofday,NULL);
     ros::Time starttdetect = ros::Time().fromNSec(1e9*timeofday.tv_sec + 1e3*timeofday.tv_usec);
 
-    vector<Box2D3D> faces_vector = faces_->detectAllFaces(cv_image_left, 1.0, cv_image_disp);
+    vector<Box2D3D> faces_vector = faces_->detectAllFaces(cv_image_left, 1.0, cv_image_disp, &cam_model_);
     gettimeofday(&timeofday,NULL);
     ros::Time endtdetect = ros::Time().fromNSec(1e9*timeofday.tv_sec + 1e3*timeofday.tv_usec);
     ros::Duration diffdetect = endtdetect - starttdetect;

@@ -52,7 +52,8 @@
 #include <opencv/cvaux.hpp>
 
 #include <ros/ros.h>
-#include "ros/time.h"
+#include <image_geometry/pinhole_camera_model.h>
+#include <ros/time.h>
 #include <boost/thread/mutex.hpp>
 #include <boost/bind.hpp>
 #include <boost/thread/thread.hpp>
@@ -130,7 +131,7 @@ class Faces
    * Output:
    * A vector of Box2D3Ds containing the bounding boxes around found faces in 2D and 3D.
    */ 
-  vector<Box2D3D> detectAllFaces(cv::Mat &image, double threshold, cv::Mat &depth_image);
+  vector<Box2D3D> detectAllFaces(cv::Mat &image, double threshold, cv::Mat &depth_image, image_geometry::PinholeCameraModel *cam_model);
 
   /*! 
    * \brief Initialize the face detector. 
@@ -149,6 +150,7 @@ class Faces
   vector<Box2D3D> faces_; /**< The list of face positions. */
 
   cv::Mat cv_image_gray_;  /**< Grayscale image */
+  image_geometry::PinholeCameraModel *cam_model_; /**< The stereo camera model for 2D-->3D conversions. */
   cv::Mat *depth_image_; /**< depth image */
 
   boost::mutex face_mutex_, face_done_mutex_, t_mutex_; 
