@@ -47,9 +47,13 @@
 #include <boost/thread/mutex.hpp>
 
 #include <people_msgs/PositionMeasurement.h>
+
 #include <message_filters/subscriber.h>
+#include <message_filters/synchronizer.h>
 #include <message_filters/time_synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
 #include <image_transport/subscriber_filter.h>
+
 #include "sensor_msgs/CameraInfo.h"
 #include "sensor_msgs/Image.h"
 #include "stereo_msgs/DisparityImage.h"
@@ -65,7 +69,6 @@
 #include "face_detector/faces.h"
 
 #include "image_geometry/stereo_camera_model.h"
-
 #include <actionlib/server/simple_action_server.h>
 #include <face_detector/FaceDetectorAction.h>
 
@@ -91,7 +94,12 @@ public:
   message_filters::Subscriber<sensor_msgs::CameraInfo> rcinfo_sub_; /**< Right camera info msg. */
   sensor_msgs::CvBridge lbridge_; /**< ROS->OpenCV bridge for the left image. */
   sensor_msgs::CvBridge dbridge_; /**< ROS->OpenCV bridge for the disparity image. */
-  message_filters::TimeSynchronizer<sensor_msgs::Image, stereo_msgs::DisparityImage, sensor_msgs::CameraInfo, sensor_msgs::CameraInfo> sync_; /**< Stereo topic synchronizer. */
+  
+  
+  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, stereo_msgs::DisparityImage, sensor_msgs::CameraInfo, sensor_msgs::CameraInfo> MySyncPolicy;
+  message_filters::Synchronizer<MySyncPolicy> sync_;
+  
+  //message_filters::TimeSynchronizer<sensor_msgs::Image, stereo_msgs::DisparityImage, sensor_msgs::CameraInfo, sensor_msgs::CameraInfo> sync_; /**< Stereo topic synchronizer. */
   
 
   // Action
@@ -146,7 +154,7 @@ public:
   FaceDetector(std::string name) : 
     BIGDIST_M(1000000.0),
     it_(nh_),
-    sync_(4),
+    sync_(11),
     as_(nh_,name),
     faces_(0),
     quit_(false)
@@ -193,13 +201,19 @@ public:
     string left_camera_info_topic  = ros::names::clean(openni_namespace + "/depth/camera_info");
     string right_camera_info_topic = ros::names::clean(openni_namespace + "/projector/camera_info");
     
-    limage_sub_.subscribe(it_,left_topic,3);
-    dimage_sub_.subscribe(nh_,disparity_topic,3);
-    lcinfo_sub_.subscribe(nh_,left_camera_info_topic,3);
-    rcinfo_sub_.subscribe(nh_,right_camera_info_topic,3);
+    limage_sub_.subscribe(it_,left_topic             ,1);
+    dimage_sub_.subscribe(nh_,disparity_topic        ,1);
+    lcinfo_sub_.subscribe(nh_,left_camera_info_topic ,1);
+    rcinfo_sub_.subscribe(nh_,right_camera_info_topic,1);
+    
+    //limage_sub_.registerCallback(boost::bind(&FaceDetector::limageCB, this, _1));
+    //dimage_sub_.registerCallback(boost::bind(&FaceDetector::dimageCB, this, _1));
+    //lcinfo_sub_.registerCallback(boost::bind(&FaceDetector::lcinfoCB, this, _1));
+    //rcinfo_sub_.registerCallback(boost::bind(&FaceDetector::rcinfoCB, this, _1));
+
     sync_.connectInput(limage_sub_, dimage_sub_, lcinfo_sub_, rcinfo_sub_),
     sync_.registerCallback(boost::bind(&FaceDetector::imageCBAll, this, _1, _2, _3, _4));
-
+    
     // Advertise a position measure message.
     pos_pub_ = nh_.advertise<people_msgs::PositionMeasurement>("face_detector/people_tracker_measurements",1);
 
@@ -271,7 +285,19 @@ public:
     void operator()(void const *) const {}
   };
 
-
+	/*void limageCB(const sensor_msgs::Image::ConstPtr &limage) {
+		ROS_INFO_THROTTLE(1,"limage %f", limage->header.stamp.toSec());
+	} 
+	void dimageCB(const stereo_msgs::DisparityImage::ConstPtr& dimage) {
+		ROS_INFO_THROTTLE(1,"dimage %f", dimage->header.stamp.toSec());
+	} 
+	void lcinfoCB(const sensor_msgs::CameraInfo::ConstPtr& lcinfo) {
+		ROS_INFO_THROTTLE(1,"lcinfo %f", lcinfo->header.stamp.toSec());
+	} 
+	void rcinfoCB(const sensor_msgs::CameraInfo::ConstPtr& rcinfo) {
+		ROS_INFO_THROTTLE(1,"rcinfo %f", rcinfo->header.stamp.toSec());
+	} */
+	
   /*! 
    * \brief Image callback for synced messages. 
    *
@@ -282,7 +308,6 @@ public:
    */
   void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::DisparityImage::ConstPtr& dimage, const sensor_msgs::CameraInfo::ConstPtr& lcinfo, const sensor_msgs::CameraInfo::ConstPtr& rcinfo)
   {
-
     // Only run the detector if in continuous mode or the detector was turned on through an action invocation.
     if (!do_continuous_ && !as_.isActive())
       return;
