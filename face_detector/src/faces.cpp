@@ -187,7 +187,7 @@ void Faces::faceDetectionThread(uint i) {
       cv::Mat tmat = disp_roi.reshape(1,disp_roi.rows*disp_roi.cols);
       cv::Mat tmat_sorted;
       cv::sort(tmat, tmat_sorted, CV_SORT_EVERY_COLUMN+CV_SORT_DESCENDING);
-      avg_depth = tmat_sorted.at<float>(floor(cv::countNonZero(tmat_sorted>0.0)/2.0)); // Get the middle valid depth (-1 disparities are invalid)
+      avg_depth = tmat_sorted.at<float>(floor(cv::countNonZero(tmat_sorted>0.0)/2.0)); // Get the middle valid depth (-1 depths are invalid)
 
       // Fill in the rest of the face data structure.
       one_face.center2d = cv::Point2d(one_face.box2d.x+one_face.box2d.width/2.0,
@@ -197,22 +197,32 @@ void Faces::faceDetectionThread(uint i) {
       // If the median depth was valid and the face is a reasonable size, the face status is "good".
       // If the median depth was valid but the face isn't a reasonable size, the face status is "bad".
       // Otherwise, the face status is "unknown".
-      if (avg_depth > 0) {
-  // TODO: Find the width of the face in 3D space (change disparity to depth)
+      if (avg_depth > 0)
+      {
 //	cam_model_->projectDisparityTo3d(cv::Point2d(0.0,0.0),avg_disp,p3_1); // disparity to depth
+				p3_1 = cv::Point3d(0.0,0.0,avg_depth);
+
 //	cam_model_->projectDisparityTo3d(cv::Point2d(one_face.box2d.width,0.0),avg_disp,p3_2);
-	one_face.radius3d = fabs(p3_2.x-p3_1.x)/2.0;
-//	cam_model_->projectDisparityTo3d(one_face.center2d, avg_disp, one_face.center3d);
+				p3_2 = cam_model_->projectPixelTo3dRay(cv::Point2d(one_face.box2d.width,0.0)) * avg_depth;
+
+				one_face.radius3d = fabs(p3_2.x-p3_1.x)/2.0;
 	
-	// Make sure the face obeys constraints
-	if (one_face.center3d.z > max_face_z_m_ || 2.0*one_face.radius3d < face_size_min_m_ || 2.0*one_face.radius3d > face_size_max_m_) {
-	  one_face.status = "bad";
-	}
+//	cam_model_->projectDisparityTo3d(one_face.center2d, avg_disp, one_face.center3d);
+				one_face.center3d = cam_model_->projectPixelTo3dRay(one_face.center2d) * avg_depth;
+	
+				// Make sure the face obeys constraints
+				if (one_face.center3d.z > max_face_z_m_
+				 || 2.0*one_face.radius3d < face_size_min_m_
+				 || 2.0*one_face.radius3d > face_size_max_m_)
+				{
+					one_face.status = "bad";
+				}
       }
-      else {
-	one_face.radius3d = 0.0;     
-	one_face.center3d = cv::Point3d(0.0,0.0,0.0);
-	one_face.status = "unknown";
+      else
+      {
+				one_face.radius3d = 0.0;     
+				one_face.center3d = cv::Point3d(0.0,0.0,0.0);
+				one_face.status = "unknown";
       }
 
       // Add faces to the output vector.
