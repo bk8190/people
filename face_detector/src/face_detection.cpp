@@ -148,6 +148,10 @@ public:
   
   bool do_publish_unknown_; /**< Publish faces even if they have unknown depth/size. Will just use the image x,y in the pos field of the published position_measurement. */
 
+
+	ros::Time last_callback_;
+	
+	
   FaceDetector(std::string name) : 
     BIGDIST_M(1000000.0),
     it_(nh_),
@@ -198,6 +202,7 @@ public:
     string left_camera_info_topic  = ros::names::clean(openni_namespace + "/depth/camera_info");
     string right_camera_info_topic = ros::names::clean(openni_namespace + "/projector/camera_info");
     
+		last_callback_ = ros::Time::now();
     limage_sub_.subscribe(it_,left_topic             ,1);
     dimage_sub_.subscribe(nh_,disparity_topic        ,1);
     lcinfo_sub_.subscribe(nh_,left_camera_info_topic ,1);
@@ -258,11 +263,15 @@ public:
    */ 
   void posCallback(const people_msgs::PositionMeasurementConstPtr& pos_ptr)
   {
-    ROS_INFO("Face detector got measurement for \"%s\" (%f,%f,%f)",pos_ptr->object_id.c_str(),
+    boost::mutex::scoped_lock pos_lock(pos_mutex_);
+    
+  	char buf[100];
+  	snprintf(buf, 100, "Position measurement \"%s\" (%.3f,%.3f,%.3f) - ",pos_ptr->object_id.c_str(),
 	      pos_ptr->pos.x, pos_ptr->pos.y, pos_ptr->pos.z);
+  	string msg(buf);
 	      
     // Put the incoming position into the position queue. It'll be processed in the next image callback.
-    boost::mutex::scoped_lock lock(pos_mutex_);
+    
     map<string, RestampedPositionMeasurement>::iterator it;
     it = pos_list_.find(pos_ptr->object_id);
     RestampedPositionMeasurement rpm;
@@ -270,18 +279,18 @@ public:
     rpm.restamp = pos_ptr->header.stamp;
     rpm.dist = BIGDIST_M;
     if (it == pos_list_.end()) {
-    	ROS_INFO("New object");
+    	msg += "New object";
       pos_list_.insert(pair<string, RestampedPositionMeasurement>(pos_ptr->object_id, rpm));
     }
     else if ((pos_ptr->header.stamp - (*it).second.pos.header.stamp) > ros::Duration().fromSec(-1.0) ){
-    	ROS_INFO("Existing object");
+    	msg += "Existing object";
       (*it).second = rpm;
     }
     else {
-    	ROS_INFO("Old object");
+    	msg += "Old object, not updating";
     }
-    lock.unlock();
 
+    ROS_INFO_STREAM(msg);
   }
 
   // Workaround to convert a DisparityImage->Image into a shared pointer for cv_bridge in imageCBAll.
@@ -316,7 +325,15 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 	// Only run the detector if in continuous mode or the detector was turned on through an action invocation.
 	if (!do_continuous_ && !as_.isActive())
 		return;
-
+	
+	if( ros::Time::now() - last_callback_ < ros::Duration(1.0) )
+		return;
+		
+	last_callback_ = ros::Time::now();
+	
+	boost::mutex::scoped_lock pos_lock(pos_mutex_);
+		
+						
 	// Clear out the result vector.
 	result_.face_positions.clear();
 
@@ -356,13 +373,17 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 	if (faces_vector.size() > 0 )
 	{
 		// Transform the positions of the known faces and remove anyone who hasn't had an update in a long time.
-		boost::mutex::scoped_lock pos_lock(pos_mutex_);
 		map<string, RestampedPositionMeasurement>::iterator it;
+		
 		for (it = pos_list_.begin(); it != pos_list_.end(); it++)
 		{
+			// TODO: This segaults after it has been removed
 			if ((limage->header.stamp - (*it).second.restamp) > ros::Duration().fromSec(5.0)) {
 				// Position is too old, kill the person.
+				ROS_INFO_STREAM("Before removing size = " << pos_list_.size() );
 				pos_list_.erase(it);
+				ROS_INFO_STREAM("After removing size = " << pos_list_.size() );
+				return;
 			}
 			else
 			{
@@ -419,24 +440,27 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 					dist = pow((*it).second.pos.pos.x - pos.pos.x, 2.0)
 					     + pow((*it).second.pos.pos.y - pos.pos.y, 2.0)
 					     + pow((*it).second.pos.pos.z - pos.pos.z, 2.0);
+					// ROS_INFO("Face \"%s\" has distance %.3f", (*it).second.pos.object_id.c_str(), dist);
 					if (dist <= faces_->face_sep_dist_m_ && dist < mindist)
 					{
 						mindist = dist;
 						close_it = it;
+						//ROS_INFO("(new closest)");
 					}
 				}
 				if (close_it != pos_list_.end())
 				{
+					pos.object_id = (*close_it).second.pos.object_id;// bugfix
 					if (mindist < (*close_it).second.dist)
 					{
 						(*close_it).second.restamp = limage->header.stamp;
 						(*close_it).second.dist = mindist;
 						(*close_it).second.pos = pos;
 					}
-					pos.object_id = (*close_it).second.pos.object_id;
-					ROS_INFO_STREAM_NAMED("face_detector","Found face " << pos.object_id);
+					ROS_INFO_STREAM_NAMED("face_detector","Associated with person \"" << (*close_it).second.pos.object_id << "\"");
 				}
 				else {
+					ROS_INFO_STREAM_NAMED("face_detector","No association");
 					pos.object_id = "";
 				}
 				result_.face_positions.push_back(pos);
@@ -445,7 +469,6 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 
 			}// if good
 		}// for iface
-		pos_lock.unlock();
 
 		// Clean out all of the distances in the pos_list_
 		for (it = pos_list_.begin(); it != pos_list_.end(); it++) {

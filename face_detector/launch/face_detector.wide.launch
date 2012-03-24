@@ -1,8 +1,11 @@
 <!-- -->
 <launch>
-	<!--node ns="wide_stereo" pkg="stereo_image_proc" type="stereo_image_proc" args="" output="screen" name="stereoproc"/--> 
 
-	<node pkg="face_detector" type="face_detector" name="face_detector" output="screen">
+	<arg name="debug" default="true"/>
+	<arg if="$(arg debug)" name="launch_prefix" value="gdb -ex run -args"/>
+	<arg unless="$(arg debug)" name="launch_prefix" value=""/>
+	
+	<node pkg="face_detector" type="face_detector" name="face_detector" output="screen" launch-prefix="$(arg launch_prefix)">
 		<param name="classifier_name" type="string" value="frontalface" />
 		<param name="classifier_filename" type="string" value="/usr/share/OpenCV-2.3.1/haarcascades/haarcascade_frontalface_alt.xml" />
 		<param name="classifier_reliability" type="double" value="0.9"/>
