@@ -183,12 +183,11 @@ FaceDetector(std::string name) :
 	faces_->initFaceDetection(1, haar_filename_, face_size_min_m, face_size_max_m, max_face_z_m, face_sep_dist_m);
 
 	// Subscribe to the images and camera parameters
-	string stereo_namespace, image_topic;
-	stereo_namespace   = nh_.resolveName("stereo");
-	image_topic        = nh_.resolveName("image");
-	string rgb_topic   = ros::names::clean(stereo_namespace + "/left/" + image_topic);
-	string depth_topic = ros::names::clean(stereo_namespace + "/disparity");
-	string camera_info_topic = ros::names::clean(stereo_namespace + "/left/camera_info");
+	string openni_namespace, image_topic;
+	openni_namespace   = nh_.resolveName("camera");
+	string rgb_topic   = ros::names::clean(openni_namespace + "/rgb/image_rect_color");
+	string depth_topic = ros::names::clean(openni_namespace + "/depth_registered/image_rect");
+	string camera_info_topic = ros::names::clean(openni_namespace + "/rgb/camera_info");
 
 	rgb_image_sub_  .subscribe(it_,rgb_topic        ,3);
 	depth_image_sub_.subscribe(it_,depth_topic      ,3);
