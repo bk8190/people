@@ -184,13 +184,15 @@ public:
     faces_->initFaceDetection(1, haar_filename_, face_size_min_m, face_size_max_m, max_face_z_m, face_sep_dist_m);
 
     // Subscribe to the images and camera parameters
-    string stereo_namespace, image_topic;
-    stereo_namespace = nh_.resolveName("stereo");
-    image_topic = nh_.resolveName("image");
-    string left_topic = ros::names::clean(stereo_namespace + "/left/" + image_topic);
-    string disparity_topic = ros::names::clean(stereo_namespace + "/disparity");
-    string left_camera_info_topic = ros::names::clean(stereo_namespace + "/left/camera_info");
-    string right_camera_info_topic = ros::names::clean(stereo_namespace + "/right/camera_info");
+    string openni_namespace = nh_.resolveName("camera");
+    
+    string left_topic      = ros::names::clean(openni_namespace + "/rgb/image_rect_color");
+    string disparity_topic = ros::names::clean(openni_namespace + "/depth/disparity");
+    
+    // OpenNI allows use  of the depth/projector infos as a left/right pair
+    string left_camera_info_topic  = ros::names::clean(openni_namespace + "/depth/camera_info");
+    string right_camera_info_topic = ros::names::clean(openni_namespace + "/projector/camera_info");
+    
     limage_sub_.subscribe(it_,left_topic,3);
     dimage_sub_.subscribe(nh_,disparity_topic,3);
     lcinfo_sub_.subscribe(nh_,left_camera_info_topic,3);
