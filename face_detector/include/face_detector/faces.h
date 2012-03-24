@@ -51,7 +51,7 @@
 #include <opencv/cxcore.hpp>
 #include <opencv/cvaux.hpp>
 
-#include "image_geometry/stereo_camera_model.h"
+#include <ros/ros.h>
 #include "ros/time.h"
 #include <boost/thread/mutex.hpp>
 #include <boost/bind.hpp>
@@ -126,12 +126,11 @@ class Faces
    * \param image The image in which to detect faces.
    * \param haar_classifier_filename Path to the xml file containing the trained haar classifier cascade.
    * \param threshold Detection threshold. Currently unused.
-   * \param disparity_image Image of disparities (from stereo).
-   * \param cam_model The camera model used to convert 2D points to 3D points.
+   * \param depth_image Image of depth (from kinect).
    * Output:
    * A vector of Box2D3Ds containing the bounding boxes around found faces in 2D and 3D.
    */ 
-  vector<Box2D3D> detectAllFaces(cv::Mat &image, double threshold, cv::Mat &disparity_image, image_geometry::StereoCameraModel *cam_model);
+  vector<Box2D3D> detectAllFaces(cv::Mat &image, double threshold, cv::Mat &depth_image);
 
   /*! 
    * \brief Initialize the face detector. 
@@ -150,8 +149,7 @@ class Faces
   vector<Box2D3D> faces_; /**< The list of face positions. */
 
   cv::Mat cv_image_gray_;  /**< Grayscale image */
-  cv::Mat *disparity_image_; /**< Disparity image */
-  image_geometry::StereoCameraModel *cam_model_; /**< The stereo camera model for 2D-->3D conversions. */
+  cv::Mat *depth_image_; /**< depth image */
 
   boost::mutex face_mutex_, face_done_mutex_, t_mutex_; 
   boost::mutex* face_go_mutex_;
