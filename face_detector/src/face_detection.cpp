@@ -45,6 +45,7 @@
 #include <ros/ros.h>
 #include <boost/filesystem.hpp>
 #include <boost/thread/mutex.hpp>
+//#include "boost/format.hpp"
 
 #include <people_msgs/PositionMeasurement.h>
 
@@ -380,10 +381,11 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 			// TODO: instead of removing it, I am making it absurdly far away.  Hacky logic makes bunny cry...
 			if ((limage->header.stamp - (*it).second.restamp) > ros::Duration().fromSec(2.0)) {
 				// Position is too old, kill the person.
-				(*it).second.pos.pos.x = 99999;
+				/*(*it).second.pos.pos.x = 99999;
 				(*it).second.pos.pos.y = 99999;
 				(*it).second.pos.pos.z = 99999;
-				(*it).second.restamp = ros::Time::now() + ros::Duration().fromSec(99999);
+				(*it).second.restamp = ros::Time::now() + ros::Duration().fromSec(99999);*/
+				pos_list_.erase(it++);
 				ROS_INFO_STREAM("Removing old person.  New size = " << pos_list_.size() );
 			}
 			else
