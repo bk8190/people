@@ -13,6 +13,7 @@
 		<param name="do_publish_faces_of_unknown_size" type="bool" value="false" />	
 		<param name="do_display" type="string" value="local" />
 		<param name="output" type="string" value="none" />
+		<param name="max_pub_rate" type="double" value="5" />
 		
 		<remap from="face_detector/people_tracker_measurements" to="/people_tracker_measurements"/>
 	</node>

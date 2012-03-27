@@ -149,9 +149,7 @@ public:
   
   bool do_publish_unknown_; /**< Publish faces even if they have unknown depth/size. Will just use the image x,y in the pos field of the published position_measurement. */
 
-
-	ros::Time last_callback_;
-	
+	ros::Rate pub_rate_;
 	
   FaceDetector(std::string name) : 
     BIGDIST_M(1000000.0),
@@ -159,7 +157,8 @@ public:
     sync_(11),
     as_(nh_,name),
     faces_(0),
-    quit_(false)
+    quit_(false),
+    pub_rate_(0)
   {
     ROS_INFO_STREAM_NAMED("face_detector","Constructing FaceDetector.");
     
@@ -167,7 +166,6 @@ public:
       // OpenCV: pop up an OpenCV highgui window
       cv::namedWindow("Face detector: Face Detection", CV_WINDOW_AUTOSIZE);
     }
-
 
     // Action stuff
     as_.registerGoalCallback(boost::bind(&FaceDetector::goalCB, this));
@@ -178,18 +176,22 @@ public:
 
     // Parameters
     ros::NodeHandle local_nh("~");
-    local_nh.param("classifier_name",name_,std::string(""));
-    local_nh.param("classifier_filename",haar_filename_,std::string(""));
-    local_nh.param("classifier_reliability",reliability_,0.0);
-    local_nh.param("do_display",do_display_,std::string("none"));
-    local_nh.param("do_continuous",do_continuous_,true);
-    local_nh.param("do_publish_faces_of_unknown_size",do_publish_unknown_,false);
-    local_nh.param("use_depth",use_depth_,true);
-    local_nh.param("use_external_init",external_init_,true);
-    local_nh.param("face_size_min_m",face_size_min_m,Faces::FACE_SIZE_MIN_M);
-    local_nh.param("face_size_max_m",face_size_max_m,Faces::FACE_SIZE_MAX_M);
-    local_nh.param("max_face_z_m",max_face_z_m,Faces::MAX_FACE_Z_M);
+    local_nh.param("classifier_name"       ,name_          ,std::string("")       );
+    local_nh.param("classifier_filename"   ,haar_filename_ ,std::string("")       );
+    local_nh.param("classifier_reliability",reliability_   ,0.0                   );
+    local_nh.param("do_display"            ,do_display_    ,std::string("none")   );
+    local_nh.param("do_continuous"         ,do_continuous_ ,true                  );
+    local_nh.param("do_publish_faces_of_unknown_size",do_publish_unknown_,false   );
+    local_nh.param("use_depth"             ,use_depth_     ,true                  );
+    local_nh.param("use_external_init"     ,external_init_ ,true                  );
+    local_nh.param("face_size_min_m"       ,face_size_min_m,Faces::FACE_SIZE_MIN_M);
+    local_nh.param("face_size_max_m"       ,face_size_max_m,Faces::FACE_SIZE_MAX_M);
+    local_nh.param("max_face_z_m"          ,max_face_z_m   ,Faces::MAX_FACE_Z_M   );
     local_nh.param("face_separation_dist_m",face_sep_dist_m,Faces::FACE_SEP_DIST_M);
+    
+    double pub_rate_temp;
+    local_nh.param("max_pub_rate", pub_rate_temp, 2.0);
+    pub_rate_ = ros::Rate(pub_rate_temp);
     
     faces_->initFaceDetection(1, haar_filename_, face_size_min_m, face_size_max_m, max_face_z_m, face_sep_dist_m);
 
@@ -203,7 +205,6 @@ public:
     string left_camera_info_topic  = ros::names::clean(openni_namespace + "/depth/camera_info");
     string right_camera_info_topic = ros::names::clean(openni_namespace + "/projector/camera_info");
     
-		last_callback_ = ros::Time::now();
     limage_sub_.subscribe(it_,left_topic             ,1);
     dimage_sub_.subscribe(nh_,disparity_topic        ,1);
     lcinfo_sub_.subscribe(nh_,left_camera_info_topic ,1);
@@ -230,7 +231,6 @@ public:
 
     ros::MultiThreadedSpinner s(2);
     ros::spin(s);
-    
   }
 
   ~FaceDetector()
@@ -326,17 +326,9 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 	// Only run the detector if in continuous mode or the detector was turned on through an action invocation.
 	if (!do_continuous_ && !as_.isActive())
 		return;
-	
-	// TODO: Make this a proper rate
-	if( ros::Time::now() - last_callback_ < ros::Duration(0.1) ) {
-		return;
-	}
-	
-	last_callback_ = ros::Time::now();
-	
+		
 	boost::mutex::scoped_lock pos_lock(pos_mutex_);
 		
-						
 	// Clear out the result vector.
 	result_.face_positions.clear();
 
@@ -553,6 +545,8 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 	if (!do_continuous_ && found_faces) {
 		as_.setSucceeded(result_);
 	}
+	
+	pub_rate_.sleep();
 }
 
 }; // end class
