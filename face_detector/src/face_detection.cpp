@@ -328,9 +328,10 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 		return;
 	
 	// TODO: Make this a proper rate
-	if( ros::Time::now() - last_callback_ < ros::Duration(0.1) )
+	if( ros::Time::now() - last_callback_ < ros::Duration(0.1) ) {
 		return;
-		
+	}
+	
 	last_callback_ = ros::Time::now();
 	
 	boost::mutex::scoped_lock pos_lock(pos_mutex_);

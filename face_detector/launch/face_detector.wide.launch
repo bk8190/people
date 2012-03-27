@@ -1,7 +1,7 @@
 <!-- -->
 <launch>
 
-	<arg name="debug" default="true"/>
+	<arg name="debug" default="false"/>
 	<arg if="$(arg debug)" name="launch_prefix" value="gdb -ex run -args"/>
 	<arg unless="$(arg debug)" name="launch_prefix" value=""/>
 	
