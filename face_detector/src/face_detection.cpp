@@ -154,7 +154,7 @@ public:
   FaceDetector(std::string name) : 
     BIGDIST_M(1000000.0),
     it_(nh_),
-    sync_(11),
+    sync_(3),
     as_(nh_,name),
     faces_(0),
     quit_(false),
@@ -192,6 +192,7 @@ public:
     double pub_rate_temp;
     local_nh.param("max_pub_rate", pub_rate_temp, 2.0);
     pub_rate_ = ros::Rate(pub_rate_temp);
+    ROS_INFO_STREAM("Max pub rate = " << pub_rate_temp);
     
     faces_->initFaceDetection(1, haar_filename_, face_size_min_m, face_size_max_m, max_face_z_m, face_sep_dist_m);
 
@@ -205,10 +206,10 @@ public:
     string left_camera_info_topic  = ros::names::clean(openni_namespace + "/depth/camera_info");
     string right_camera_info_topic = ros::names::clean(openni_namespace + "/projector/camera_info");
     
-    limage_sub_.subscribe(it_,left_topic             ,1);
-    dimage_sub_.subscribe(nh_,disparity_topic        ,1);
-    lcinfo_sub_.subscribe(nh_,left_camera_info_topic ,1);
-    rcinfo_sub_.subscribe(nh_,right_camera_info_topic,1);
+    limage_sub_.subscribe(it_,left_topic             ,3);
+    dimage_sub_.subscribe(nh_,disparity_topic        ,3);
+    lcinfo_sub_.subscribe(nh_,left_camera_info_topic ,3);
+    rcinfo_sub_.subscribe(nh_,right_camera_info_topic,3);
     
     //limage_sub_.registerCallback(boost::bind(&FaceDetector::limageCB, this, _1));
     //dimage_sub_.registerCallback(boost::bind(&FaceDetector::dimageCB, this, _1));
@@ -225,7 +226,7 @@ public:
 
     // Subscribe to filter measurements.
     if (external_init_) {
-      pos_sub_ = nh_.subscribe("people_tracker_filter",1,&FaceDetector::posCallback,this);
+      pos_sub_ = nh_.subscribe("people_tracker_filter", 5, &FaceDetector::posCallback,this);
       ROS_INFO_STREAM_NAMED("face_detector","Subscribed to the person filter messages.");
     }
 
@@ -323,6 +324,15 @@ public:
 */
 void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::DisparityImage::ConstPtr& dimage, const sensor_msgs::CameraInfo::ConstPtr& lcinfo, const sensor_msgs::CameraInfo::ConstPtr& rcinfo)
 {
+	// Enforce a maximum rate for this callback.  I can't just use rate.sleep() because there is a second callback that must occur.
+	static ros::Time last_cb_time(0);
+	if( ros::Time::now() - last_cb_time < pub_rate_.expectedCycleTime() ) {
+		return;
+	}
+	last_cb_time = ros::Time::now();
+	pub_rate_.reset();
+	
+	
 	// Only run the detector if in continuous mode or the detector was turned on through an action invocation.
 	if (!do_continuous_ && !as_.isActive())
 		return;
@@ -373,13 +383,12 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 		for (it = pos_list_.begin(); it != pos_list_.end(); it++)
 		{
 			// TODO: instead of removing it, I am making it absurdly far away.  Hacky logic makes bunny cry...
-			if ((limage->header.stamp - (*it).second.restamp) > ros::Duration().fromSec(2.0)) {
-				// Position is too old, kill the person.
-				/*(*it).second.pos.pos.x = 99999;
+			if ((limage->header.stamp - (*it).second.restamp) > ros::Duration().fromSec(1.0)) {
+				//pos_list_.erase(it++);
+				(*it).second.pos.pos.x = 99999;
 				(*it).second.pos.pos.y = 99999;
 				(*it).second.pos.pos.z = 99999;
-				(*it).second.restamp = ros::Time::now() + ros::Duration().fromSec(99999);*/
-				pos_list_.erase(it++);
+				(*it).second.restamp = ros::Time::now() + ros::Duration().fromSec(99999);
 				ROS_INFO_STREAM("Removing old person.  New size = " << pos_list_.size() );
 			}
 			else
@@ -536,7 +545,7 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 	// Display
 	if (do_display_ == "local") {
 		cv::imshow("Face detector: Face Detection",cv_image_out_);
-		cv::waitKey(2);
+		cv::waitKey(5);
 		cv_mutex_.unlock();
 	}
 	/******** Done display **********************************************************/
@@ -546,7 +555,10 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 		as_.setSucceeded(result_);
 	}
 	
-	pub_rate_.sleep();
+	if( pub_rate_.cycleTime() > pub_rate_.expectedCycleTime() ){
+		ROS_WARN_STREAM(boost::format("Missed update time of %.3fsec, actual time %.3fsec")
+			%pub_rate_.expectedCycleTime().toSec() %pub_rate_.cycleTime().toSec() );
+	}
 }
 
 }; // end class
