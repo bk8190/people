@@ -327,7 +327,8 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 	if (!do_continuous_ && !as_.isActive())
 		return;
 	
-	if( ros::Time::now() - last_callback_ < ros::Duration(1.0) )
+	// TODO: Make this a proper rate
+	if( ros::Time::now() - last_callback_ < ros::Duration(0.1) )
 		return;
 		
 	last_callback_ = ros::Time::now();
