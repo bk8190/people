@@ -384,8 +384,8 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
     {
       // TODO: instead of removing it, I am making it absurdly far away.  Hacky logic makes bunny cry...
       if ((limage->header.stamp - (*it).second.restamp) > ros::Duration().fromSec(1.0)) {
-        pos_list_.erase(it);
-        return;
+        /*pos_list_.erase(it);
+        return;*/
         (*it).second.pos.pos.x = 999999;
         (*it).second.pos.pos.y = 999999;
         (*it).second.pos.pos.z = 999999;
