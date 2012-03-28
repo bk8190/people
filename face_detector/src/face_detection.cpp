@@ -149,8 +149,8 @@ public:
   
   bool do_publish_unknown_; /**< Publish faces even if they have unknown depth/size. Will just use the image x,y in the pos field of the published position_measurement. */
 
-	ros::Rate pub_rate_;
-	
+  ros::Rate pub_rate_;
+  
   FaceDetector(std::string name) : 
     BIGDIST_M(1000000.0),
     it_(nh_),
@@ -267,11 +267,11 @@ public:
   {
     boost::mutex::scoped_lock pos_lock(pos_mutex_);
     
-  	char buf[100];
-  	snprintf(buf, 100, "Position measurement \"%s\" (%.3f,%.3f,%.3f) - ",pos_ptr->object_id.c_str(),
-	      pos_ptr->pos.x, pos_ptr->pos.y, pos_ptr->pos.z);
-  	string msg(buf);
-	      
+    char buf[100];
+    snprintf(buf, 100, "Position measurement \"%s\" (%.3f,%.3f,%.3f) - ",pos_ptr->object_id.c_str(),
+        pos_ptr->pos.x, pos_ptr->pos.y, pos_ptr->pos.z);
+    string msg(buf);
+        
     // Put the incoming position into the position queue. It'll be processed in the next image callback.
     
     map<string, RestampedPositionMeasurement>::iterator it;
@@ -281,15 +281,15 @@ public:
     rpm.restamp = pos_ptr->header.stamp;
     rpm.dist = BIGDIST_M;
     if (it == pos_list_.end()) {
-    	msg += "New object";
+      msg += "New object";
       pos_list_.insert(pair<string, RestampedPositionMeasurement>(pos_ptr->object_id, rpm));
     }
     else if ((pos_ptr->header.stamp - (*it).second.pos.header.stamp) > ros::Duration().fromSec(-1.0) ){
-    	msg += "Existing object";
+      msg += "Existing object";
       (*it).second = rpm;
     }
     else {
-    	msg += "Old object, not updating";
+      msg += "Old object, not updating";
     }
 
     ROS_INFO_STREAM(msg);
@@ -301,19 +301,19 @@ public:
     void operator()(void const *) const {}
   };
 
-	/*void limageCB(const sensor_msgs::Image::ConstPtr &limage) {
-		ROS_INFO_THROTTLE(1,"limage %f", limage->header.stamp.toSec());
-	} 
-	void dimageCB(const stereo_msgs::DisparityImage::ConstPtr& dimage) {
-		ROS_INFO_THROTTLE(1,"dimage %f", dimage->header.stamp.toSec());
-	} 
-	void lcinfoCB(const sensor_msgs::CameraInfo::ConstPtr& lcinfo) {
-		ROS_INFO_THROTTLE(1,"lcinfo %f", lcinfo->header.stamp.toSec());
-	} 
-	void rcinfoCB(const sensor_msgs::CameraInfo::ConstPtr& rcinfo) {
-		ROS_INFO_THROTTLE(1,"rcinfo %f", rcinfo->header.stamp.toSec());
-	} */
-	
+  /*void limageCB(const sensor_msgs::Image::ConstPtr &limage) {
+    ROS_INFO_THROTTLE(1,"limage %f", limage->header.stamp.toSec());
+  } 
+  void dimageCB(const stereo_msgs::DisparityImage::ConstPtr& dimage) {
+    ROS_INFO_THROTTLE(1,"dimage %f", dimage->header.stamp.toSec());
+  } 
+  void lcinfoCB(const sensor_msgs::CameraInfo::ConstPtr& lcinfo) {
+    ROS_INFO_THROTTLE(1,"lcinfo %f", lcinfo->header.stamp.toSec());
+  } 
+  void rcinfoCB(const sensor_msgs::CameraInfo::ConstPtr& rcinfo) {
+    ROS_INFO_THROTTLE(1,"rcinfo %f", rcinfo->header.stamp.toSec());
+  } */
+  
 /*! 
 * \brief Image callback for synced messages. 
 *
@@ -324,241 +324,242 @@ public:
 */
 void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::DisparityImage::ConstPtr& dimage, const sensor_msgs::CameraInfo::ConstPtr& lcinfo, const sensor_msgs::CameraInfo::ConstPtr& rcinfo)
 {
-	// Enforce a maximum rate for this callback.  I can't just use rate.sleep() because there is a second callback that must occur.
-	static ros::Time last_cb_time(0);
-	if( ros::Time::now() - last_cb_time < pub_rate_.expectedCycleTime() ) {
-		return;
-	}
-	last_cb_time = ros::Time::now();
-	pub_rate_.reset();
-	
-	
-	// Only run the detector if in continuous mode or the detector was turned on through an action invocation.
-	if (!do_continuous_ && !as_.isActive())
-		return;
-		
-	boost::mutex::scoped_lock pos_lock(pos_mutex_);
-		
-	// Clear out the result vector.
-	result_.face_positions.clear();
+  // Enforce a maximum rate for this callback.  I can't just use rate.sleep() because there is a second callback that must occur.
+  static ros::Time last_cb_time(0);
+  if( ros::Time::now() - last_cb_time < pub_rate_.expectedCycleTime() ) {
+    return;
+  }
+  last_cb_time = ros::Time::now();
+  pub_rate_.reset();
+  
+  
+  // Only run the detector if in continuous mode or the detector was turned on through an action invocation.
+  if (!do_continuous_ && !as_.isActive())
+    return;
+    
+  boost::mutex::scoped_lock pos_lock(pos_mutex_);
+    
+  // Clear out the result vector.
+  result_.face_positions.clear();
 
-	if (do_display_ == "local") {
-		cv_mutex_.lock();
-	}
+  if (do_display_ == "local") {
+    cv_mutex_.lock();
+  }
 
-	// ROS --> OpenCV
-	cv::Mat cv_image_left(lbridge_.imgMsgToCv(limage,"bgr8"));
-	sensor_msgs::ImageConstPtr boost_dimage(const_cast<sensor_msgs::Image*>(&dimage->image), NullDeleter());
-	cv::Mat cv_image_disp(dbridge_.imgMsgToCv(boost_dimage));
-	cam_model_.fromCameraInfo(lcinfo,rcinfo);
+  // ROS --> OpenCV
+  cv::Mat cv_image_left(lbridge_.imgMsgToCv(limage,"bgr8"));
+  sensor_msgs::ImageConstPtr boost_dimage(const_cast<sensor_msgs::Image*>(&dimage->image), NullDeleter());
+  cv::Mat cv_image_disp(dbridge_.imgMsgToCv(boost_dimage));
+  cam_model_.fromCameraInfo(lcinfo,rcinfo);
 
-	// For display, keep a copy of the image that we can draw on.
-	if (do_display_ == "local") {
-		cv_image_out_ = cv_image_left.clone();
-	}
+  // For display, keep a copy of the image that we can draw on.
+  if (do_display_ == "local") {
+    cv_image_out_ = cv_image_left.clone();
+  }
 
-	struct timeval timeofday;
-	gettimeofday(&timeofday,NULL);
-	ros::Time starttdetect = ros::Time().fromNSec(1e9*timeofday.tv_sec + 1e3*timeofday.tv_usec);
+  struct timeval timeofday;
+  gettimeofday(&timeofday,NULL);
+  ros::Time starttdetect = ros::Time().fromNSec(1e9*timeofday.tv_sec + 1e3*timeofday.tv_usec);
 
-	vector<Box2D3D> faces_vector = faces_->detectAllFaces(cv_image_left, 1.0, cv_image_disp, &cam_model_);
-	gettimeofday(&timeofday,NULL);
-	ros::Time endtdetect = ros::Time().fromNSec(1e9*timeofday.tv_sec + 1e3*timeofday.tv_usec);
-	ros::Duration diffdetect = endtdetect - starttdetect;
-	ROS_DEBUG_STREAM_NAMED("face_detector","Detection duration = " << diffdetect.toSec() << "sec");   
-	//ROS_INFO_STREAM("Detection duration = " << diffdetect.toSec() << "sec");   
+  vector<Box2D3D> faces_vector = faces_->detectAllFaces(cv_image_left, 1.0, cv_image_disp, &cam_model_);
+  gettimeofday(&timeofday,NULL);
+  ros::Time endtdetect = ros::Time().fromNSec(1e9*timeofday.tv_sec + 1e3*timeofday.tv_usec);
+  ros::Duration diffdetect = endtdetect - starttdetect;
+  ROS_DEBUG_STREAM_NAMED("face_detector","Detection duration = " << diffdetect.toSec() << "sec");   
+  ROS_INFO_STREAM("Detection duration = " << diffdetect.toSec() << "sec");   
 
-	bool found_faces = false;
+  bool found_faces = false;
 
-	int ngood = 0;
-	sensor_msgs::PointCloud cloud;
-	cloud.header.stamp = limage->header.stamp;
-	cloud.header.frame_id = limage->header.frame_id;
+  int ngood = 0;
+  sensor_msgs::PointCloud cloud;
+  cloud.header.stamp = limage->header.stamp;
+  cloud.header.frame_id = limage->header.frame_id;
 
-	if (faces_vector.size() > 0 )
-	{
-		// Transform the positions of the known faces and remove anyone who hasn't had an update in a long time.
-		map<string, RestampedPositionMeasurement>::iterator it;
-		
-		for (it = pos_list_.begin(); it != pos_list_.end(); it++)
-		{
-			// TODO: instead of removing it, I am making it absurdly far away.  Hacky logic makes bunny cry...
-			if ((limage->header.stamp - (*it).second.restamp) > ros::Duration().fromSec(1.0)) {
-				//pos_list_.erase(it++);
-				(*it).second.pos.pos.x = 99999;
-				(*it).second.pos.pos.y = 99999;
-				(*it).second.pos.pos.z = 99999;
-				(*it).second.restamp = ros::Time::now() + ros::Duration().fromSec(99999);
-				ROS_INFO_STREAM("Removing old person.  New size = " << pos_list_.size() );
-			}
-			else
-			{
-				// Transform the person to this time. Note that the pos time is updated but not the restamp. 
-				tf::Point pt;
-				tf::pointMsgToTF((*it).second.pos.pos, pt);
-				tf::Stamped<tf::Point> loc(pt, (*it).second.pos.header.stamp, (*it).second.pos.header.frame_id);
-				try {
-					tf_.transformPoint(limage->header.frame_id, limage->header.stamp, loc, "odom", loc);
-					(*it).second.pos.header.stamp = limage->header.stamp;
-					(*it).second.pos.pos.x = loc[0];
-					(*it).second.pos.pos.y = loc[1];
-					(*it).second.pos.pos.z = loc[2];
-				} 
-				catch (tf::TransformException& ex) {
-					ROS_WARN("Could not transform person to this time");
-				}
-			}
-		} // for pos_list_
-		// End filter face position update
+  if (faces_vector.size() > 0 )
+  {
+    // Transform the positions of the known faces and remove anyone who hasn't had an update in a long time.
+    map<string, RestampedPositionMeasurement>::iterator it;
+    
+    for (it = pos_list_.begin(); it != pos_list_.end(); it++)
+    {
+      // TODO: instead of removing it, I am making it absurdly far away.  Hacky logic makes bunny cry...
+      if ((limage->header.stamp - (*it).second.restamp) > ros::Duration().fromSec(1.0)) {
+        pos_list_.erase(it);
+        return;
+        (*it).second.pos.pos.x = 999999;
+        (*it).second.pos.pos.y = 999999;
+        (*it).second.pos.pos.z = 999999;
+        (*it).second.restamp = ros::Time::now() + ros::Duration().fromSec(999999);
+        ROS_INFO_STREAM("Removing old person.  New size = " << pos_list_.size() );
+      }
+      else
+      {
+        // Transform the person to this time. Note that the pos time is updated but not the restamp. 
+        tf::Point pt;
+        tf::pointMsgToTF((*it).second.pos.pos, pt);
+        tf::Stamped<tf::Point> loc(pt, (*it).second.pos.header.stamp, (*it).second.pos.header.frame_id);
+        try {
+          tf_.transformPoint(limage->header.frame_id, limage->header.stamp, loc, "odom", loc);
+          (*it).second.pos.header.stamp = limage->header.stamp;
+          (*it).second.pos.pos.x = loc[0];
+          (*it).second.pos.pos.y = loc[1];
+          (*it).second.pos.pos.z = loc[2];
+        } 
+        catch (tf::TransformException& ex) {
+          ROS_WARN("Could not transform person to this time");
+        }
+      }
+    } // for pos_list_
+    // End filter face position update
 
-		// Associate the found faces with previously seen faces, and publish all good face centers.
-		Box2D3D *one_face;
-		people_msgs::PositionMeasurement pos;
+    // Associate the found faces with previously seen faces, and publish all good face centers.
+    Box2D3D *one_face;
+    people_msgs::PositionMeasurement pos;
 
-		for (uint iface = 0; iface < faces_vector.size(); iface++)
-		{
-			one_face = &faces_vector[iface];
+    for (uint iface = 0; iface < faces_vector.size(); iface++)
+    {
+      one_face = &faces_vector[iface];
 
-			if (one_face->status=="good" || (one_face->status=="unknown" && do_publish_unknown_))
-			{
-				std::string id = "";
+      if (one_face->status=="good" || (one_face->status=="unknown" && do_publish_unknown_))
+      {
+        std::string id = "";
 
-				// Convert the face format to a PositionMeasurement msg.
-				pos.header.stamp = limage->header.stamp;
-				pos.name = name_; 
-				pos.pos.x = one_face->center3d.x; 
-				pos.pos.y = one_face->center3d.y;
-				pos.pos.z = one_face->center3d.z; 
-				pos.header.frame_id = limage->header.frame_id;//"*_stereo_optical_frame";
-				pos.reliability = reliability_;
-				pos.initialization = 1;//0;
-				pos.covariance[0] = 0.04; pos.covariance[1] = 0.0;  pos.covariance[2] = 0.0;
-				pos.covariance[3] = 0.0;  pos.covariance[4] = 0.04; pos.covariance[5] = 0.0;
-				pos.covariance[6] = 0.0;  pos.covariance[7] = 0.0;  pos.covariance[8] = 0.04;
+        // Convert the face format to a PositionMeasurement msg.
+        pos.header.stamp = limage->header.stamp;
+        pos.name = name_; 
+        pos.pos.x = one_face->center3d.x; 
+        pos.pos.y = one_face->center3d.y;
+        pos.pos.z = one_face->center3d.z; 
+        pos.header.frame_id = limage->header.frame_id;//"*_stereo_optical_frame";
+        pos.reliability = reliability_;
+        pos.initialization = 1;//0;
+        pos.covariance[0] = 0.04; pos.covariance[1] = 0.0;  pos.covariance[2] = 0.0;
+        pos.covariance[3] = 0.0;  pos.covariance[4] = 0.04; pos.covariance[5] = 0.0;
+        pos.covariance[6] = 0.0;  pos.covariance[7] = 0.0;  pos.covariance[8] = 0.04;
 
-				// Check if this person's face is close enough to one of the previously known faces and associate it with the closest one.
-				// Otherwise publish it with an empty id.
-				// Note that multiple face positions can be published with the same id, but ids in the pos_list_ are unique. The position of a face in the list is updated with the closest found face.
-				double dist, mindist = BIGDIST_M;
-				map<string, RestampedPositionMeasurement>::iterator close_it = pos_list_.end();
-				
-				ROS_INFO("Finding distances");
-				for (it = pos_list_.begin(); it != pos_list_.end(); it++)
-				{
-					dist = pow((*it).second.pos.pos.x - pos.pos.x, 2.0)
-					     + pow((*it).second.pos.pos.y - pos.pos.y, 2.0)
-					     + pow((*it).second.pos.pos.z - pos.pos.z, 2.0);
-					// ROS_INFO("Face \"%s\" has distance %.3f", (*it).second.pos.object_id.c_str(), dist);
-					if (dist <= faces_->face_sep_dist_m_ && dist < mindist)
-					{
-						mindist = dist;
-						close_it = it;
-						//ROS_INFO("(new closest)");
-					}
-				}
-				if (close_it != pos_list_.end())
-				{
-					pos.object_id = (*close_it).second.pos.object_id;// bugfix
-					if (mindist < (*close_it).second.dist)
-					{
-						(*close_it).second.restamp = limage->header.stamp;
-						(*close_it).second.dist = mindist;
-						(*close_it).second.pos = pos;
-					}
-					ROS_INFO_STREAM_NAMED("face_detector","Associated with person \"" << (*close_it).second.pos.object_id << "\"");
-				}
-				else {
-					ROS_INFO_STREAM_NAMED("face_detector","No association");
-					pos.object_id = "";
-				}
-				result_.face_positions.push_back(pos);
-				found_faces = true;
-				pos_pub_.publish(pos);
+        // Check if this person's face is close enough to one of the previously known faces and associate it with the closest one.
+        // Otherwise publish it with an empty id.
+        // Note that multiple face positions can be published with the same id, but ids in the pos_list_ are unique. The position of a face in the list is updated with the closest found face.
+        double dist, mindist = BIGDIST_M;
+        map<string, RestampedPositionMeasurement>::iterator close_it = pos_list_.end();
+        
+        ROS_INFO("Finding distances");
+        for (it = pos_list_.begin(); it != pos_list_.end(); it++)
+        {
+          dist = pow((*it).second.pos.pos.x - pos.pos.x, 2.0)
+               + pow((*it).second.pos.pos.y - pos.pos.y, 2.0)
+               + pow((*it).second.pos.pos.z - pos.pos.z, 2.0);
+          // ROS_INFO("Face \"%s\" has distance %.3f", (*it).second.pos.object_id.c_str(), dist);
+          if (dist <= faces_->face_sep_dist_m_ && dist < mindist)
+          {
+            mindist = dist;
+            close_it = it;
+            //ROS_INFO("(new closest)");
+          }
+        }
+        if (close_it != pos_list_.end())
+        {
+          pos.object_id = (*close_it).second.pos.object_id;// bugfix
+          if (mindist < (*close_it).second.dist)
+          {
+            (*close_it).second.restamp = limage->header.stamp;
+            (*close_it).second.dist = mindist;
+            (*close_it).second.pos = pos;
+          }
+          ROS_INFO_STREAM_NAMED("face_detector","Associated with person \"" << (*close_it).second.pos.object_id << "\"");
+        }
+        else {
+          ROS_INFO_STREAM_NAMED("face_detector","No association");
+          pos.object_id = "";
+        }
+        result_.face_positions.push_back(pos);
+        found_faces = true;
+        pos_pub_.publish(pos);
 
-			}// if good
-		}// for iface
+      }// if good
+    }// for iface
 
-		// Clean out all of the distances in the pos_list_
-		for (it = pos_list_.begin(); it != pos_list_.end(); it++) {
-			(*it).second.dist = BIGDIST_M;
-		}
-		// Done associating faces.
+    // Clean out all of the distances in the pos_list_
+    for (it = pos_list_.begin(); it != pos_list_.end(); it++) {
+      (*it).second.dist = BIGDIST_M;
+    }
+    // Done associating faces.
 
-		/******** Display **************************************************************/
+    /******** Display **************************************************************/
 
-		// Draw an appropriately colored rectangle on the display image and in the visualizer.
+    // Draw an appropriately colored rectangle on the display image and in the visualizer.
 
-		cloud.channels.resize(1);
-		cloud.channels[0].name = "intensity";
+    cloud.channels.resize(1);
+    cloud.channels[0].name = "intensity";
 
-		for (uint iface = 0; iface < faces_vector.size(); iface++)
-		{
-			one_face = &faces_vector[iface];	
+    for (uint iface = 0; iface < faces_vector.size(); iface++)
+    {
+      one_face = &faces_vector[iface];  
 
-			// Visualization of good faces as a point cloud
-			if (one_face->status == "good")
-			{
-				geometry_msgs::Point32 p;
-				p.x = one_face->center3d.x;
-				p.y = one_face->center3d.y;
-				p.z = one_face->center3d.z;
-				cloud.points.push_back(p);
-				cloud.channels[0].values.push_back(1.0f);
+      // Visualization of good faces as a point cloud
+      if (one_face->status == "good")
+      {
+        geometry_msgs::Point32 p;
+        p.x = one_face->center3d.x;
+        p.y = one_face->center3d.y;
+        p.z = one_face->center3d.z;
+        cloud.points.push_back(p);
+        cloud.channels[0].values.push_back(1.0f);
 
-				ngood ++;
-			}
-			else {
-				ROS_DEBUG_STREAM_NAMED("face_detector","The detection didn't have a valid size, so it wasn't visualized.");
-			}
+        ngood ++;
+      }
+      else {
+        ROS_DEBUG_STREAM_NAMED("face_detector","The detection didn't have a valid size, so it wasn't visualized.");
+      }
 
-			// Visualization by image display.
-			if (do_display_ == "local")
-			{
-				cv::Scalar color;
-				if (one_face->status == "good") {
-					color = cv::Scalar(0,255,0);
-				}
-				else if (one_face->status == "unknown") {
-					color = cv::Scalar(255,0,0);
-				}
-				else {
-					color = cv::Scalar(0,0,255);
-				}
+      // Visualization by image display.
+      if (do_display_ == "local")
+      {
+        cv::Scalar color;
+        if (one_face->status == "good") {
+          color = cv::Scalar(0,255,0);
+        }
+        else if (one_face->status == "unknown") {
+          color = cv::Scalar(255,0,0);
+        }
+        else {
+          color = cv::Scalar(0,0,255);
+        }
 
-				if (do_display_ == "local")
-				{
-					cv::rectangle(cv_image_out_,
-						cv::Point(one_face->box2d.x,one_face->box2d.y), 
-						cv::Point(one_face->box2d.x+one_face->box2d.width, one_face->box2d.y+one_face->box2d.height),
-						color, 4);
-				}
-			} 
-		} // for iface
+        if (do_display_ == "local")
+        {
+          cv::rectangle(cv_image_out_,
+            cv::Point(one_face->box2d.x,one_face->box2d.y), 
+            cv::Point(one_face->box2d.x+one_face->box2d.width, one_face->box2d.y+one_face->box2d.height),
+            color, 4);
+        }
+      } 
+    } // for iface
 
-		ROS_INFO_STREAM_NAMED("face_detector","Number of faces found: " << faces_vector.size()
-		                   << ", number with good depth and size: " << ngood);
-	
-	} // if we have faces
+    ROS_INFO_STREAM_NAMED("face_detector","Number of faces found: " << faces_vector.size()
+                       << ", number with good depth and size: " << ngood);
+  
+  } // if we have faces
 
-	cloud_pub_.publish(cloud);
+  cloud_pub_.publish(cloud);
 
-	// Display
-	if (do_display_ == "local") {
-		cv::imshow("Face detector: Face Detection",cv_image_out_);
-		cv::waitKey(5);
-		cv_mutex_.unlock();
-	}
-	/******** Done display **********************************************************/
+  // Display
+  if (do_display_ == "local") {
+    cv::imshow("Face detector: Face Detection",cv_image_out_);
+    cv::waitKey(5);
+    cv_mutex_.unlock();
+  }
+  /******** Done display **********************************************************/
 
-	// If you don't want continuous processing and you've found at least one face, turn off the detector.
-	if (!do_continuous_ && found_faces) {
-		as_.setSucceeded(result_);
-	}
-	
-	if( pub_rate_.cycleTime() > pub_rate_.expectedCycleTime() ){
-		ROS_WARN_STREAM(boost::format("Missed update time of %.3fsec, actual time %.3fsec")
-			%pub_rate_.expectedCycleTime().toSec() %pub_rate_.cycleTime().toSec() );
-	}
+  // If you don't want continuous processing and you've found at least one face, turn off the detector.
+  if (!do_continuous_ && found_faces) {
+    as_.setSucceeded(result_);
+  }
+  
+  if( pub_rate_.cycleTime() > pub_rate_.expectedCycleTime() ){
+    ROS_WARN_STREAM(boost::format("Missed update time of %.3fsec, actual time %.3fsec")
+      %pub_rate_.expectedCycleTime().toSec() %pub_rate_.cycleTime().toSec() );
+  }
 }
 
 }; // end class

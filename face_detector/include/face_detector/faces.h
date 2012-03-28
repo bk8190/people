@@ -4,14 +4,14 @@
 **********************************************************************
 *
 * Software License Agreement (BSD License)
-* 
+*
 *  Copyright (c) 2008, Willow Garage, Inc.
 *  All rights reserved.
-* 
+*
 *  Redistribution and use in source and binary forms, with or without
 *  modification, are permitted provided that the following conditions
 *  are met:
-* 
+*
 *   * Redistributions of source code must retain the above copyright
 *     notice, this list of conditions and the following disclaimer.
 *   * Redistributions in binary form must reproduce the above
@@ -21,7 +21,7 @@
 *   * Neither the name of the Willow Garage nor the names of its
 *     contributors may be used to endorse or promote products derived
 *     from this software without specific prior written permission.
-* 
+*
 *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
@@ -69,13 +69,13 @@ namespace people {
  * \brief A structure for holding information about boxes in 2d and 3d.
  */
 struct Box2D3D {
-  cv::Point2d center2d;
-  cv::Point3d center3d;
-  double radius2d;
-  double radius3d;
-  cv::Rect box2d;
-  string status;
-  int id;
+	cv::Point2d center2d;
+	cv::Point3d center3d;
+	double radius2d;
+	double radius3d;
+	cv::Rect box2d;
+	string status;
+	int id;
 };
 
 
@@ -83,8 +83,8 @@ struct Box2D3D {
  * \brief A structure containing the person's identifying data.
  */
 struct Face {
-  string id;
-  string name; 
+	string id;
+	string name;
 };
 
 
@@ -94,77 +94,77 @@ struct Face {
  */
 class Faces
 {
- public:
+public:
 
-  // Default thresholds for the face detection algorithm.
-  static const double FACE_SIZE_MIN_M=0.1; /**< Default minimum face size, in meters. Only use this for initialization. */
-  static const double FACE_SIZE_MAX_M=0.5; /**< Default maximum face size, in meters. Only use this for initialization. */
-  static const double MAX_FACE_Z_M=8.0; /**< Default maximum distance from the camera, in meters. Only use this for initialization. */
-  // Default thresholds for face tracking.
-  static const double FACE_SEP_DIST_M=1.0; /**< Default separation distance for associating faces. Only use this for initialization. */
+	// Default thresholds for the face detection algorithm.
+	static const double FACE_SIZE_MIN_M=0.1; /**< Default minimum face size, in meters. Only use this for initialization. */
+	static const double FACE_SIZE_MAX_M=0.5; /**< Default maximum face size, in meters. Only use this for initialization. */
+	static const double MAX_FACE_Z_M=8.0; /**< Default maximum distance from the camera, in meters. Only use this for initialization. */
+	// Default thresholds for face tracking.
+	static const double FACE_SEP_DIST_M=1.0; /**< Default separation distance for associating faces. Only use this for initialization. */
+	
+	// Thresholds for the face detection algorithm.
+	double face_size_min_m_; /**< Minimum face size, in meters. */
+	double face_size_max_m_; /**< Maximum face size, in meters. */
+	double max_face_z_m_; /**< Maximum distance from the camera, in meters. */
+	// Thresholds for face tracking.
+	double face_sep_dist_m_; /**< Separation distance for associating faces. */
+	
+	
+	
+	// Create an empty list of people.
+	Faces();
+	
+	// Destroy a list of people.
+	~Faces();
+	
+	
+	/*!
+	 * \brief Detect all faces in an image.
+	 *
+	 * Input:
+	 * \param image The image in which to detect faces.
+	 * \param haar_classifier_filename Path to the xml file containing the trained haar classifier cascade.
+	 * \param threshold Detection threshold. Currently unused.
+	 * \param disparity_image Image of disparities (from stereo).
+	 * \param cam_model The camera model used to convert 2D points to 3D points.
+	 * Output:
+	 * A vector of Box2D3Ds containing the bounding boxes around found faces in 2D and 3D.
+	 */
+	vector<Box2D3D> detectAllFaces(cv::Mat &image, double threshold, cv::Mat &disparity_image, image_geometry::StereoCameraModel *cam_model);
+	
+	/*!
+	 * \brief Initialize the face detector.
+	 *
+	 * Initialize the face detector, including loading in the classifier cascade.
+	 * Input:
+	 * \param num_cascades Should always be 1 (may change in the future.)
+	 * \param haar_classifier_filename Full path to the cascade file.
+	 */
+	void initFaceDetection(uint num_cascades, string haar_classifier_filename, double face_size_min_m, double face_size_max_m, double max_face_z_m, double face_sep_dist_m);
+	
+////////////////////
+private:
 
-  // Thresholds for the face detection algorithm.
-  double face_size_min_m_; /**< Minimum face size, in meters. */
-  double face_size_max_m_; /**< Maximum face size, in meters. */
-  double max_face_z_m_; /**< Maximum distance from the camera, in meters. */
-  // Thresholds for face tracking.
-  double face_sep_dist_m_; /**< Separation distance for associating faces. */
-
-
-
-  // Create an empty list of people.
-  Faces();
-
-  // Destroy a list of people.
-  ~Faces();
-
-
-  /*!
-   * \brief Detect all faces in an image.
-   * 
-   * Input:
-   * \param image The image in which to detect faces.
-   * \param haar_classifier_filename Path to the xml file containing the trained haar classifier cascade.
-   * \param threshold Detection threshold. Currently unused.
-   * \param disparity_image Image of disparities (from stereo).
-   * \param cam_model The camera model used to convert 2D points to 3D points.
-   * Output:
-   * A vector of Box2D3Ds containing the bounding boxes around found faces in 2D and 3D.
-   */ 
-  vector<Box2D3D> detectAllFaces(cv::Mat &image, double threshold, cv::Mat &disparity_image, image_geometry::StereoCameraModel *cam_model);
-
-  /*! 
-   * \brief Initialize the face detector. 
-   *
-   * Initialize the face detector, including loading in the classifier cascade.
-   * Input:
-   * \param num_cascades Should always be 1 (may change in the future.)
-   * \param haar_classifier_filename Full path to the cascade file.
-   */
-  void initFaceDetection(uint num_cascades, string haar_classifier_filename, double face_size_min_m, double face_size_max_m, double max_face_z_m, double face_sep_dist_m);
-
- ////////////////////
- private:
-
-  vector<Face> list_;  /**< The list of face ids. */
-  vector<Box2D3D> faces_; /**< The list of face positions. */
-
-  cv::Mat cv_image_gray_;  /**< Grayscale image */
-  cv::Mat *disparity_image_; /**< Disparity image */
-  image_geometry::StereoCameraModel *cam_model_; /**< The stereo camera model for 2D-->3D conversions. */
-
-  boost::mutex face_mutex_, face_done_mutex_, t_mutex_; 
-  boost::mutex* face_go_mutex_;
-  boost::thread_group threads_;
-  boost::condition face_detection_ready_cond_, face_detection_done_cond_; 
-  int num_threads_to_wait_for_;
-  int images_ready_;
-
-  /* Structures for the face detector. */
-  cv::CascadeClassifier cascade_;  /**< Classifier cascade for face detection. */
-
-  void faceDetectionThread(uint i);
-
+	vector<Face> list_;  /**< The list of face ids. */
+	vector<Box2D3D> faces_; /**< The list of face positions. */
+	
+	cv::Mat cv_image_gray_;  /**< Grayscale image */
+	cv::Mat *disparity_image_; /**< Disparity image */
+	image_geometry::StereoCameraModel *cam_model_; /**< The stereo camera model for 2D-->3D conversions. */
+	
+	boost::mutex face_mutex_, face_done_mutex_, t_mutex_;
+	boost::mutex* face_go_mutex_;
+	boost::thread_group threads_;
+	boost::condition face_detection_ready_cond_, face_detection_done_cond_;
+	int num_threads_to_wait_for_;
+	int images_ready_;
+	
+	/* Structures for the face detector. */
+	cv::CascadeClassifier cascade_;  /**< Classifier cascade for face detection. */
+	
+	void faceDetectionThread(uint i);
+	
 };
 
 };
