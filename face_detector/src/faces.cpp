@@ -161,8 +161,14 @@ void Faces::faceDetectionThread(uint i)
     (cam_model_->left()).project3dToPixel(p3_2,p2_2);
     int this_min_face_size = (int)(floor(fabs(p2_2.x-p2_1.x)));
 
+
+		ros::Time t1 = ros::Time::now();
     std::vector<cv::Rect> faces_vec;
     cascade_.detectMultiScale(cv_image_gray_, faces_vec,  1.2, 2, CV_HAAR_DO_CANNY_PRUNING, cv::Size(this_min_face_size,this_min_face_size));
+		ros::Time t2 = ros::Time::now();
+		
+		ROS_INFO_STREAM("detectMultiScale took "<<(t2-t1).toSec()<<" seconds.");
+
 
     // Filter the faces using depth information, if available. Currently checks that the actual face size is within the given limits.
     cv::Scalar color(0,255,0);
