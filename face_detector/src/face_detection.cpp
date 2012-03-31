@@ -426,11 +426,11 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 
         // Convert the face format to a PositionMeasurement msg.
         pos.header.stamp = limage->header.stamp;
+        pos.header.frame_id = limage->header.frame_id;
         pos.name = name_; 
         pos.pos.x = one_face->center3d.x; 
         pos.pos.y = one_face->center3d.y;
         pos.pos.z = one_face->center3d.z; 
-        pos.header.frame_id = limage->header.frame_id;//"*_stereo_optical_frame";
         pos.reliability = reliability_;
         pos.initialization = 1;//0;
         pos.covariance[0] = 0.04; pos.covariance[1] = 0.0;  pos.covariance[2] = 0.0;
