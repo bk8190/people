@@ -267,19 +267,16 @@ public:
   {
     boost::mutex::scoped_lock pos_lock(pos_mutex_);
     
-    char buf[100];
-    snprintf(buf, 100, "Position measurement \"%s\" (%.3f,%.3f,%.3f) - ",pos_ptr->object_id.c_str(),
-        pos_ptr->pos.x, pos_ptr->pos.y, pos_ptr->pos.z);
-    string msg(buf);
+    string msg = str(boost::format("Position measurement \"%s\" (%.3f,%.3f,%.3f) - ")
+    	% pos_ptr->object_id.c_str() % pos_ptr->pos.x % pos_ptr->pos.y % pos_ptr->pos.z);
         
-    // Put the incoming position into the position queue. It'll be processed in the next image callback.
-    
+    // Put the incoming position into the position queue. It'll be processed in the next image callback.  
     map<string, RestampedPositionMeasurement>::iterator it;
     it = pos_list_.find(pos_ptr->object_id);
     RestampedPositionMeasurement rpm;
-    rpm.pos = *pos_ptr;
+    rpm.pos     = *pos_ptr;
     rpm.restamp = pos_ptr->header.stamp;
-    rpm.dist = BIGDIST_M;
+    rpm.dist    = BIGDIST_M;
     if (it == pos_list_.end()) {
       msg += "New object";
       pos_list_.insert(pair<string, RestampedPositionMeasurement>(pos_ptr->object_id, rpm));
