@@ -153,21 +153,20 @@ void Faces::faceDetectionThread(uint i)
     // Find the faces using OpenCV's haar cascade object detector.
     
     // This finds the min face size in pixels
-    // TODO: remove dependence on cam_model
     cv::Point3d p3_1(0,0,max_face_z_m_);
     cv::Point3d p3_2(face_size_min_m_,0,max_face_z_m_);
     cv::Point2d p2_1, p2_2;
     (cam_model_->left()).project3dToPixel(p3_1,p2_1);
     (cam_model_->left()).project3dToPixel(p3_2,p2_2);
     int this_min_face_size = (int)(floor(fabs(p2_2.x-p2_1.x)));
-
-
+		
 		ros::Time t1 = ros::Time::now();
+		
     std::vector<cv::Rect> faces_vec;
     cascade_.detectMultiScale(cv_image_gray_, faces_vec,  1.2, 2, CV_HAAR_DO_CANNY_PRUNING, cv::Size(this_min_face_size,this_min_face_size));
+    
 		ros::Time t2 = ros::Time::now();
-		
-		ROS_INFO_STREAM("detectMultiScale took "<<(t2-t1).toSec()<<" seconds.");
+		ROS_DEBUG_STREAM("[face_detector] detectMultiScale took "<<((t2-t1).toSec())<<" seconds.");
 
 
     // Filter the faces using depth information, if available. Currently checks that the actual face size is within the given limits.
@@ -180,16 +179,17 @@ void Faces::faceDetectionThread(uint i)
     for (uint iface = 0; iface < faces_vec.size(); iface++)
     {
       one_face.status = "good";
-
-      one_face.box2d = faces_vec[iface];
-      one_face.id = i; // The cascade that computed this face.
+      one_face.box2d  = faces_vec[iface];
+      one_face.id     = i; // The cascade that computed this face.
 
       // Get the median disparity in the middle half of the bounding box.
       cv::Mat disp_roi_shallow(*disparity_image_,
        cv::Rect(floor(one_face.box2d.x+0.25*one_face.box2d.width),  
                 floor(one_face.box2d.y+0.25*one_face.box2d.height),
-                floor(one_face.box2d.x+0.75*one_face.box2d.width) - floor(one_face.box2d.x+0.25*one_face.box2d.width) + 1,
-                floor(one_face.box2d.y+0.75*one_face.box2d.height) - floor(one_face.box2d.y+0.25*one_face.box2d.height) + 1));
+                floor(one_face.box2d.x+0.75*one_face.box2d.width)
+              - floor(one_face.box2d.x+0.25*one_face.box2d.width) + 1,
+                floor(one_face.box2d.y+0.75*one_face.box2d.height)
+              - floor(one_face.box2d.y+0.25*one_face.box2d.height) + 1));
       cv::Mat disp_roi = disp_roi_shallow.clone();
       cv::Mat tmat = disp_roi.reshape(1,disp_roi.rows*disp_roi.cols);
       cv::Mat tmat_sorted;
