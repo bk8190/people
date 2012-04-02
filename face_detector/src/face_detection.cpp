@@ -391,7 +391,7 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
       }
       else
       {
-        // Transform the person to this time. Note that the pos time is updated but not the restamp. 
+        // Transform the person to this time. Note that the pos time is updated but not the restamp.
         tf::Point pt;
         tf::pointMsgToTF((*it).second.pos.pos, pt);
         tf::Stamped<tf::Point> loc(pt, (*it).second.pos.header.stamp, (*it).second.pos.header.frame_id);
@@ -401,7 +401,7 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
           (*it).second.pos.pos.x = loc[0];
           (*it).second.pos.pos.y = loc[1];
           (*it).second.pos.pos.z = loc[2];
-        } 
+        }
         catch (tf::TransformException& ex) {
           ROS_WARN("Could not transform person to this time");
         }
@@ -411,7 +411,6 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 
     // Associate the found faces with previously seen faces, and publish all good face centers.
     Box2D3D *one_face;
-    people_msgs::PositionMeasurement pos;
 
     for (uint iface = 0; iface < faces_vector.size(); iface++)
     {
@@ -430,9 +429,9 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
         pos.pos.z = one_face->center3d.z; 
         pos.reliability = reliability_;
         pos.initialization = 1;//0;
-        pos.covariance[0] = 0.04; pos.covariance[1] = 0.0;  pos.covariance[2] = 0.0;
-        pos.covariance[3] = 0.0;  pos.covariance[4] = 0.04; pos.covariance[5] = 0.0;
-        pos.covariance[6] = 0.0;  pos.covariance[7] = 0.0;  pos.covariance[8] = 0.04;
+        pos.covariance[0] = 0.10; pos.covariance[1] = 0.0;  pos.covariance[2] = 0.0;
+        pos.covariance[3] = 0.0;  pos.covariance[4] = 0.10; pos.covariance[5] = 0.0;
+        pos.covariance[6] = 0.0;  pos.covariance[7] = 0.0;  pos.covariance[8] = 0.20;
 
         // Check if this person's face is close enough to one of the previously known faces and associate it with the closest one.
         // Otherwise publish it with an empty id.
