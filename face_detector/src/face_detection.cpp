@@ -149,6 +149,7 @@ public:
   
   bool do_publish_unknown_; /**< Publish faces even if they have unknown depth/size. Will just use the image x,y in the pos field of the published position_measurement. */
 
+	double variance_xy_;
   ros::Rate pub_rate_;
   
   FaceDetector(std::string name) : 
@@ -188,6 +189,9 @@ public:
     local_nh.param("face_size_max_m"       ,face_size_max_m,Faces::FACE_SIZE_MAX_M);
     local_nh.param("max_face_z_m"          ,max_face_z_m   ,Faces::MAX_FACE_Z_M   );
     local_nh.param("face_separation_dist_m",face_sep_dist_m,Faces::FACE_SEP_DIST_M);
+    local_nh.param("variance_xy"           , variance_xy_  , 0.3                  );
+    
+    ROS_INFO_STREAM(boost::format("Using variance = %.2f") %variance_xy_ );
     
     double pub_rate_temp;
     local_nh.param("max_pub_rate", pub_rate_temp, 2.0);
@@ -411,6 +415,7 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 
     // Associate the found faces with previously seen faces, and publish all good face centers.
     Box2D3D *one_face;
+    people_msgs::PositionMeasurement pos;
 
     for (uint iface = 0; iface < faces_vector.size(); iface++)
     {
@@ -429,9 +434,9 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
         pos.pos.z = one_face->center3d.z; 
         pos.reliability = reliability_;
         pos.initialization = 1;//0;
-        pos.covariance[0] = 0.10; pos.covariance[1] = 0.0;  pos.covariance[2] = 0.0;
-        pos.covariance[3] = 0.0;  pos.covariance[4] = 0.10; pos.covariance[5] = 0.0;
-        pos.covariance[6] = 0.0;  pos.covariance[7] = 0.0;  pos.covariance[8] = 0.20;
+        pos.covariance[0] = variance_xy_; pos.covariance[1] = 0.0;         pos.covariance[2] = 0.0;
+        pos.covariance[3] = 0.0;          pos.covariance[4] =variance_xy_; pos.covariance[5] = 0.0;
+        pos.covariance[6] = 0.0;          pos.covariance[7] = 0.0;         pos.covariance[8] = 0.20;
 
         // Check if this person's face is close enough to one of the previously known faces and associate it with the closest one.
         // Otherwise publish it with an empty id.
