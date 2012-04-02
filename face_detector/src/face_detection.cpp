@@ -350,7 +350,7 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
 
   int ngood = 0;
   sensor_msgs::PointCloud cloud;
-  cloud.header.stamp = limage->header.stamp;
+  cloud.header.stamp    = limage->header.stamp;
   cloud.header.frame_id = limage->header.frame_id;
 
   if (faces_vector.size() > 0 )
@@ -403,14 +403,15 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
         std::string id = "";
 
         // Convert the face format to a PositionMeasurement msg.
-        pos.header.stamp = limage->header.stamp;
+        pos.header.stamp    = limage->header.stamp;
         pos.header.frame_id = limage->header.frame_id;
-        pos.name = name_; 
-        pos.pos.x = one_face->center3d.x; 
-        pos.pos.y = one_face->center3d.y;
-        pos.pos.z = one_face->center3d.z; 
-        pos.reliability = reliability_;
-        pos.initialization = 1;//0;
+        pos.name            = name_; 
+        pos.pos.x           = one_face->center3d.x; 
+        pos.pos.y           = one_face->center3d.y;
+        pos.pos.z           = one_face->center3d.z; 
+        pos.reliability     = reliability_;
+        pos.initialization  = 1;
+        
         pos.covariance[0] = variance_xy_; pos.covariance[1] = 0.0;         pos.covariance[2] = 0.0;
         pos.covariance[3] = 0.0;          pos.covariance[4] =variance_xy_; pos.covariance[5] = 0.0;
         pos.covariance[6] = 0.0;          pos.covariance[7] = 0.0;         pos.covariance[8] = 0.20;
@@ -444,10 +445,10 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
             (*close_it).second.dist = mindist;
             (*close_it).second.pos = pos;
           }
-          ROS_DEBUG_STREAM("[face_detector] Associated with person \"" << (*close_it).second.pos.object_id << "\"");
+          ROS_DEBUG_STREAM("[face_detector] Associated with person \""<<(*close_it).second.pos.object_id << "\"");
         }
         else {
-          ROS_DEBUG_STREAM("[face_detector] No association");
+          ROS_DEBUG("[face_detector] No association");
           pos.object_id = "";
         }
         found_faces = true;
@@ -527,10 +528,9 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
     cv_mutex_.unlock();
   }
   /******** Done display **********************************************************/
-
   
   if( pub_rate_.cycleTime() > pub_rate_.expectedCycleTime() ){
-    ROS_WARN_STREAM(boost::format("[face_detector] Missed update time of %.3fsec, actual time %.3fsec")
+    ROS_WARN_STREAM(boost::format("[face_detector] Missed update time of %.4fsec, actual time %.4fsec")
       %pub_rate_.expectedCycleTime().toSec() %pub_rate_.cycleTime().toSec() );
   }
 }
