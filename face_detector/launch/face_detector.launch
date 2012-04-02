@@ -1,11 +1,12 @@
 <!-- -->
 <launch>
-
+	
 	<arg name="debug" default="false"/>
 	<arg if="$(arg debug)" name="launch_prefix" value="gdb -ex run -args"/>
 	<arg unless="$(arg debug)" name="launch_prefix" value=""/>
 	
 	<node pkg="face_detector" type="face_detector" name="face_detector" output="screen" launch-prefix="$(arg launch_prefix)">
+	
 		<param name="classifier_name" type="string" value="frontalface" />
 		<param name="classifier_filename" type="string" value="/usr/share/OpenCV-2.3.1/haarcascades/haarcascade_frontalface_alt.xml" />
 		<param name="classifier_reliability" type="double" value="0.9"/>
@@ -14,10 +15,10 @@
 		<param name="do_display" type="string" value="local" />
 		<param name="output" type="string" value="none" />
 		<param name="max_pub_rate" type="double" value="4.0" />
-		
+
 		<param name="variance_xy" type="double" value="0.50" />
 		
 		<remap from="face_detector/people_tracker_measurements" to="/people_tracker_measurements"/>
 	</node>
-
+	
 </launch>
