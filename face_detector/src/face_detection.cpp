@@ -35,8 +35,6 @@
 
 /* Author: Caroline Pantofaru */
 
-
-
 #include <stdio.h>
 #include <iostream>
 #include <vector>
@@ -45,7 +43,7 @@
 #include <ros/ros.h>
 #include <boost/filesystem.hpp>
 #include <boost/thread/mutex.hpp>
-//#include "boost/format.hpp"
+#include <boost/format.hpp>
 
 #include <people_msgs/PositionMeasurement.h>
 
@@ -182,7 +180,7 @@ public:
     local_nh.param("face_separation_dist_m",face_sep_dist_m,Faces::FACE_SEP_DIST_M);
     local_nh.param("variance_xy"           , variance_xy_  , 0.3                  );
     
-    ROS_INFO_STREAM(boost::format("Using variance = %.2f") %variance_xy_ );
+    ROS_INFO_STREAM(boost::format("Using variance = %.2f, sigma = %.2fm") %variance_xy_ %sqrt(variance_xy_) );
     
     double pub_rate_temp;
     local_nh.param("max_pub_rate", pub_rate_temp, 2.0);
@@ -193,7 +191,6 @@ public:
 
     // Subscribe to the images and camera parameters
     string openni_namespace = nh_.resolveName("camera");
-    
     string left_topic      = ros::names::clean(openni_namespace + "/rgb/image_rect_color");
     string disparity_topic = ros::names::clean(openni_namespace + "/depth/disparity");
     
@@ -205,11 +202,6 @@ public:
     dimage_sub_.subscribe(nh_,disparity_topic        ,3);
     lcinfo_sub_.subscribe(nh_,left_camera_info_topic ,3);
     rcinfo_sub_.subscribe(nh_,right_camera_info_topic,3);
-    
-    //limage_sub_.registerCallback(boost::bind(&FaceDetector::limageCB, this, _1));
-    //dimage_sub_.registerCallback(boost::bind(&FaceDetector::dimageCB, this, _1));
-    //lcinfo_sub_.registerCallback(boost::bind(&FaceDetector::lcinfoCB, this, _1));
-    //rcinfo_sub_.registerCallback(boost::bind(&FaceDetector::rcinfoCB, this, _1));
 
     sync_.connectInput(limage_sub_, dimage_sub_, lcinfo_sub_, rcinfo_sub_),
     sync_.registerCallback(boost::bind(&FaceDetector::imageCBAll, this, _1, _2, _3, _4));
@@ -231,14 +223,16 @@ public:
 
   ~FaceDetector()
   {
-
     cv_image_out_.release();
 
     if (do_display_ == "local") {
       cv::destroyWindow("Face detector: Face Detection");
     }
 
-    if (faces_) {delete faces_; faces_ = 0;}
+    if (faces_) {
+    	delete faces_;
+    	faces_ = 0;
+    }
   }
 
 
@@ -283,19 +277,6 @@ public:
     void operator()(void const *) const {}
   };
 
-  /*void limageCB(const sensor_msgs::Image::ConstPtr &limage) {
-    ROS_INFO_THROTTLE(1,"limage %f", limage->header.stamp.toSec());
-  } 
-  void dimageCB(const stereo_msgs::DisparityImage::ConstPtr& dimage) {
-    ROS_INFO_THROTTLE(1,"dimage %f", dimage->header.stamp.toSec());
-  } 
-  void lcinfoCB(const sensor_msgs::CameraInfo::ConstPtr& lcinfo) {
-    ROS_INFO_THROTTLE(1,"lcinfo %f", lcinfo->header.stamp.toSec());
-  } 
-  void rcinfoCB(const sensor_msgs::CameraInfo::ConstPtr& rcinfo) {
-    ROS_INFO_THROTTLE(1,"rcinfo %f", rcinfo->header.stamp.toSec());
-  } */
-  
 /*! 
 * \brief Image callback for synced messages. 
 *
