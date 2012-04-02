@@ -100,10 +100,6 @@ public:
   message_filters::Synchronizer<MySyncPolicy> sync_;
   
 
-  // Action
-  actionlib::SimpleActionServer<face_detector::FaceDetectorAction> as_;
-  face_detector::FaceDetectorFeedback feedback_;
-  face_detector::FaceDetectorResult result_;
 
   // If running the face detector as a component in part of a larger person tracker, this subscribes to the tracker's position measurements and whether it was initialized by some other node. 
   // Todo: resurrect the person tracker.
@@ -156,7 +152,6 @@ public:
     BIGDIST_M(1000000.0),
     it_(nh_),
     sync_(3),
-    as_(nh_,name),
     faces_(0),
     quit_(false),
     pub_rate_(0)
@@ -167,10 +162,6 @@ public:
       // OpenCV: pop up an OpenCV highgui window
       cv::namedWindow("Face detector: Face Detection", CV_WINDOW_AUTOSIZE);
     }
-
-    // Action stuff
-    as_.registerGoalCallback(boost::bind(&FaceDetector::goalCB, this));
-    as_.registerPreemptCallback(boost::bind(&FaceDetector::preemptCB, this));
     
     faces_ = new Faces();
     double face_size_min_m, face_size_max_m, max_face_z_m, face_sep_dist_m;
@@ -250,16 +241,6 @@ public:
     if (faces_) {delete faces_; faces_ = 0;}
   }
 
-  void goalCB() {
-    ROS_INFO("Face detector action started.");
-    as_.acceptNewGoal();
-  }
-
-  void preemptCB() {
-    ROS_INFO("Face detector action preempted.");
-    as_.setPreempted();
-  }
-
 
   /*!
    * \brief Position message callback. 
@@ -271,7 +252,7 @@ public:
   {
     boost::mutex::scoped_lock pos_lock(pos_mutex_);
     
-    string msg = str(boost::format("Position measurement \"%s\" (%.3f,%.3f,%.3f) - ")
+    string msg = str(boost::format("[face_detector] Position measurement \"%s\" (%.3f,%.3f,%.3f) - ")
     	% pos_ptr->object_id.c_str() % pos_ptr->pos.x % pos_ptr->pos.y % pos_ptr->pos.z);
         
     // Put the incoming position into the position queue. It'll be processed in the next image callback.  
@@ -293,7 +274,7 @@ public:
       msg += "Old object, not updating";
     }
 
-    ROS_INFO_STREAM(msg);
+    ROS_DEBUG_STREAM(msg);
   }
 
   // Workaround to convert a DisparityImage->Image into a shared pointer for cv_bridge in imageCBAll.
@@ -335,13 +316,10 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
   
   
   // Only run the detector if in continuous mode or the detector was turned on through an action invocation.
-  if (!do_continuous_ && !as_.isActive())
+  if (!do_continuous_)
     return;
     
   boost::mutex::scoped_lock pos_lock(pos_mutex_);
-    
-  // Clear out the result vector.
-  result_.face_positions.clear();
 
   if (do_display_ == "local") {
     cv_mutex_.lock();
@@ -365,9 +343,8 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
   vector<Box2D3D> faces_vector = faces_->detectAllFaces(cv_image_left, 1.0, cv_image_disp, &cam_model_);
   gettimeofday(&timeofday,NULL);
   ros::Time endtdetect = ros::Time().fromNSec(1e9*timeofday.tv_sec + 1e3*timeofday.tv_usec);
-  ros::Duration diffdetect = endtdetect - starttdetect;
-  ROS_DEBUG_STREAM_NAMED("face_detector","Detection duration = " << diffdetect.toSec() << "sec");   
-  ROS_INFO_STREAM("Detection duration = " << diffdetect.toSec() << "sec");   
+  ros::Duration diffdetect = endtdetect - starttdetect;  
+  ROS_DEBUG_STREAM("[face_detector] Detection duration = " << diffdetect.toSec() << "sec");   
 
   bool found_faces = false;
 
@@ -391,7 +368,7 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
         (*it).second.pos.pos.y = 999999;
         (*it).second.pos.pos.z = 999999;
         (*it).second.restamp = ros::Time::now() + ros::Duration().fromSec(999999);
-        ROS_INFO_STREAM("Removing old person.  New size = " << pos_list_.size() );
+        ROS_INFO_STREAM("[face_detector] Removing old person.  New size = " << pos_list_.size() );
       }
       else
       {
@@ -407,7 +384,7 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
           (*it).second.pos.pos.z = loc[2];
         }
         catch (tf::TransformException& ex) {
-          ROS_WARN("Could not transform person to this time");
+          ROS_WARN("[face_detector] Could not transform person to this time");
         }
       }
     } // for pos_list_
@@ -444,7 +421,7 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
         double dist, mindist = BIGDIST_M;
         map<string, RestampedPositionMeasurement>::iterator close_it = pos_list_.end();
         
-        ROS_INFO("Finding distances");
+        ROS_DEBUG("[face_detector] Finding distances");
         for (it = pos_list_.begin(); it != pos_list_.end(); it++)
         {
           dist = pow((*it).second.pos.pos.x - pos.pos.x, 2.0)
@@ -467,13 +444,12 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
             (*close_it).second.dist = mindist;
             (*close_it).second.pos = pos;
           }
-          ROS_INFO_STREAM_NAMED("face_detector","Associated with person \"" << (*close_it).second.pos.object_id << "\"");
+          ROS_DEBUG_STREAM("[face_detector] Associated with person \"" << (*close_it).second.pos.object_id << "\"");
         }
         else {
-          ROS_INFO_STREAM_NAMED("face_detector","No association");
+          ROS_DEBUG_STREAM("[face_detector] No association");
           pos.object_id = "";
         }
-        result_.face_positions.push_back(pos);
         found_faces = true;
         pos_pub_.publish(pos);
 
@@ -510,7 +486,7 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
         ngood ++;
       }
       else {
-        ROS_DEBUG_STREAM_NAMED("face_detector","The detection didn't have a valid size, so it wasn't visualized.");
+        ROS_DEBUG_STREAM("[face_detector] The detection didn't have a valid size, so it wasn't visualized.");
       }
 
       // Visualization by image display.
@@ -537,7 +513,7 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
       } 
     } // for iface
 
-    ROS_INFO_STREAM_NAMED("face_detector","Number of faces found: " << faces_vector.size()
+    ROS_DEBUG_STREAM("[face_detector] Number of faces found: " << faces_vector.size()
                        << ", number with good depth and size: " << ngood);
   
   } // if we have faces
@@ -552,13 +528,9 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
   }
   /******** Done display **********************************************************/
 
-  // If you don't want continuous processing and you've found at least one face, turn off the detector.
-  if (!do_continuous_ && found_faces) {
-    as_.setSucceeded(result_);
-  }
   
   if( pub_rate_.cycleTime() > pub_rate_.expectedCycleTime() ){
-    ROS_WARN_STREAM(boost::format("Missed update time of %.3fsec, actual time %.3fsec")
+    ROS_WARN_STREAM(boost::format("[face_detector] Missed update time of %.3fsec, actual time %.3fsec")
       %pub_rate_.expectedCycleTime().toSec() %pub_rate_.cycleTime().toSec() );
   }
 }
