@@ -16,7 +16,7 @@
 		<param name="output" type="string" value="none" />
 		<param name="max_pub_rate" type="double" value="4.0" />
 
-		<param name="variance_xy" type="double" value="0.50" />
+		<param name="variance_xy" type="double" value="0.40" />
 		
 		<remap from="face_detector/people_tracker_measurements" to="/people_tracker_measurements"/>
 	</node>
