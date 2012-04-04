@@ -159,11 +159,16 @@ void Faces::faceDetectionThread(uint i)
     (cam_model_->left()).project3dToPixel(p3_1,p2_1);
     (cam_model_->left()).project3dToPixel(p3_2,p2_2);
     int this_min_face_size = (int)(floor(fabs(p2_2.x-p2_1.x)));
+    
+    this_min_face_size = max(this_min_face_size, 15);
+    
+		ROS_DEBUG_STREAM("[face_detector] Min size: "<<this_min_face_size<<" pixels");
 		
 		ros::Time t1 = ros::Time::now();
 		
     std::vector<cv::Rect> faces_vec;
     cascade_.detectMultiScale(cv_image_gray_, faces_vec,  1.2, 2, CV_HAAR_DO_CANNY_PRUNING, cv::Size(this_min_face_size,this_min_face_size));
+    // cascade_.detectMultiScale(cv_image_gray_, faces_vec,  1.2, 2, CV_HAAR_DO_CANNY_PRUNING, cv::Size(this_min_face_size,this_min_face_size)); // original
     
 		ros::Time t2 = ros::Time::now();
 		ROS_DEBUG_STREAM("[face_detector] detectMultiScale took "<<((t2-t1).toSec())<<" seconds.");
@@ -211,6 +216,8 @@ void Faces::faceDetectionThread(uint i)
         cam_model_->projectDisparityTo3d(cv::Point2d(one_face.box2d.width,0.0),avg_disp,p3_2);
         one_face.radius3d = fabs(p3_2.x-p3_1.x)/2.0;
         cam_model_->projectDisparityTo3d(one_face.center2d, avg_disp, one_face.center3d);
+        
+        ROS_DEBUG_STREAM(boost::format("[face_detector] Face diameter %2fm (%2f pixels) Depth %.2fm") %(2.0*one_face.radius3d) %(2.0*one_face.radius2d) %(p3_1.z) );
         
         // Make sure the face obeys constraints
         if (one_face.center3d.z > max_face_z_m_ || 2.0*one_face.radius3d < face_size_min_m_ || 2.0*one_face.radius3d > face_size_max_m_) {

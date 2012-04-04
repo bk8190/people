@@ -182,6 +182,8 @@ public:
     
     ROS_INFO_STREAM(boost::format("Using variance = %.2f, sigma = %.2fm") %variance_xy_ %sqrt(variance_xy_) );
     
+    ROS_INFO_STREAM(boost::format("Face size (meters) [%f,%f], max Z dist %f") %face_size_min_m %face_size_max_m %max_face_z_m);
+    
     double pub_rate_temp;
     local_nh.param("max_pub_rate", pub_rate_temp, 2.0);
     pub_rate_ = ros::Rate(pub_rate_temp);
@@ -491,6 +493,8 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
             cv::Point(one_face->box2d.x,one_face->box2d.y), 
             cv::Point(one_face->box2d.x+one_face->box2d.width, one_face->box2d.y+one_face->box2d.height),
             color, 4);
+            
+            ROS_DEBUG_STREAM("[face_detector] Face size = "<<one_face->box2d.width<<"x"<<one_face->box2d.height);
         }
       } 
     } // for iface
