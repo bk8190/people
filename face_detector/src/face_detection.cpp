@@ -104,7 +104,8 @@ public:
   ros::Subscriber pos_sub_;
   bool external_init_; 
 
-
+	string s;
+	
   // Publishers
   // A point cloud of the face positions, meant for visualization in rviz. 
   // This could be replaced by visualization markers, but they can't be modified 
@@ -152,7 +153,8 @@ public:
     sync_(3),
     faces_(0),
     quit_(false),
-    pub_rate_(0)
+    pub_rate_(0),
+    s("face positions")
   {
     ROS_INFO_STREAM_NAMED("face_detector","Constructing FaceDetector.");
     
@@ -466,9 +468,25 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
         p.z = one_face->center3d.z;
         cloud.points.push_back(p);
         cloud.channels[0].values.push_back(1.0f);
+				
+				ngood ++;
+				
+				geometry_msgs::Point p2;
+				p2.x = p.x;
+				p2.y = p.y;
+				p2.z = p.z;
 
-        ngood ++;
-      }
+				tf::Point pt;
+				tf::pointMsgToTF(p2, pt);
+				tf::Stamped<tf::Point> loc(pt, cloud.header.stamp, cloud.header.frame_id);
+				try {
+					tf_.transformPoint("base_link", cloud.header.stamp, loc, "odom", loc);
+					s = s + "\n" + (boost::format("%f,%f") %loc[0] %loc[1] ).str();
+				}
+				catch (tf::TransformException& ex) {
+					ROS_WARN("[face_detector] Could not transform person to this time");
+				}
+			}
       else {
         ROS_DEBUG_STREAM("[face_detector] The detection didn't have a valid size, so it wasn't visualized.");
       }
@@ -505,6 +523,7 @@ void imageCBAll(const sensor_msgs::Image::ConstPtr &limage, const stereo_msgs::D
   } // if we have faces
 
   cloud_pub_.publish(cloud);
+  ROS_DEBUG_STREAM(s);
 
   // Display
   if (do_display_ == "local") {
